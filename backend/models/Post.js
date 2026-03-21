@@ -6,11 +6,13 @@ const postSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true, // Speeds up "find my posts"
     },
     pageId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Page',
       default: null,
+      index: true,
     },
     type: {
       type: String,
@@ -24,23 +26,17 @@ const postSchema = new mongoose.Schema(
       default: '',
       maxlength: 500,
     },
-    mediaUrl: {
-      type: String,
-      default: null,
-    },
+    mediaUrl: { type: String, default: null },
     mediaType: {
       type: String,
-      enum: ['image', 'video', 'text', null],
+      enum: ['image', 'video', null], // 'text' removed — redundant
       default: null,
     },
-    mediaPublicId: {
-      type: String,
-      default: null,
-    },
+    mediaPublicId: { type: String, default: null },
     mediaDuration: {
       type: Number,
       default: null,
-      max: 15,
+      max: 15, // Shorts/Stories style
     },
 
     // Hashtags
@@ -48,6 +44,7 @@ const postSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Hashtag',
+        index: true, // Critical for hashtag feed
       },
     ],
 
@@ -58,36 +55,16 @@ const postSchema = new mongoose.Schema(
         enum: ['all', 'targeted'],
         default: 'all',
       },
-      years: {
-        type: [Number],
-        default: [],
-      },
-      programs: {
-        type: [String],
-        default: [],
-      },
-      courseCodes: {
-        type: [String],
-        default: [],
-      },
+      years: { type: [Number], default: [] },
+      programs: { type: [String], default: [] },
+      courseCodes: { type: [String], default: [] },
     },
 
     // Votes (parked for later)
     votes: {
-      upvotes: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: 'User',
-        default: [],
-      },
-      downvotes: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: 'User',
-        default: [],
-      },
-      score: {
-        type: Number,
-        default: 0,
-      },
+      upvotes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      downvotes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      score: { type: Number, default: 0 },
     },
   },
   {
@@ -95,12 +72,8 @@ const postSchema = new mongoose.Schema(
   }
 )
 
-// Validation — at least text or media must be present
-postSchema.pre('save', function (next) {
-  if (!this.textContent && !this.mediaUrl) {
-    return next(new Error('A post must have either text or media'))
-  }
-  next()
-})
+// Compound index — optimizes fetching newest posts first
+postSchema.index({ createdAt: -1 })
+
 
 module.exports = mongoose.model('Post', postSchema)
