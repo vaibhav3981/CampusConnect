@@ -102,7 +102,13 @@ exports.getFeed = async (req, res) => {
       if (post.type !== 'announcement') return true
       if (post.audience.scope === 'all') return true
 
-      // Targeted — check year and program match
+      // Professors always see all announcements
+      if (fullUser.role === 'professor') return true
+
+      // Alumni see all announcements too
+      if (fullUser.role === 'alumni') return true
+
+      // Students — check year and program match
       const yearMatch =
         post.audience.years.length === 0 ||
         post.audience.years.includes(fullUser.year)
