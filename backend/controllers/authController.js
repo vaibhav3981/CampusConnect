@@ -92,6 +92,7 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+
 // Update profile
 exports.updateProfile = async (req, res) => {
   try {
@@ -113,6 +114,25 @@ exports.updateProfile = async (req, res) => {
     ).select('-passwordHash')
 
     res.status(200).json(updated)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Search users for @ mentions
+exports.searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query
+    if (!q || q.length < 1) return res.status(200).json([])
+
+    const users = await User.find({
+      name: { $regex: q, $options: 'i' },
+      _id: { $ne: req.user.id },
+    })
+      .select('name role avatarUrl')
+      .limit(5)
+
+    res.status(200).json(users)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
