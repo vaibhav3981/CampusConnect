@@ -29,4 +29,4 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
 app.use('/api/posts', require('./routes/posts'))
-app.use('/api/pages', require('./routes/pages'))
+app.use('/api/upload', require('./routes/upload'))
