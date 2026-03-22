@@ -1,5 +1,6 @@
 const Post = require('../models/Post')
 const Hashtag = require('../models/Hashtag')
+const User = require('../models/User')
 
 // Optimized hashtag helper
 const extractHashtags = async (text) => {
@@ -17,7 +18,7 @@ const extractHashtags = async (text) => {
         $inc: { postCount: 1, trendScore: 1 },
         $set: { lastActive: new Date() },
       },
-      { upsert: true, returnDocument: 'after' }  // fixed: was new: true
+      { upsert: true, returnDocument: 'after' }
     )
 
     hashtagIds.push(hashtag._id)
@@ -72,38 +73,16 @@ exports.createPost = async (req, res) => {
   }
 }
 
-// Optimized feed query
+// Get feed
 exports.getFeed = async (req, res) => {
   try {
     const { hashtag, page = 1, limit = 10 } = req.query
-    const user = req.user
     const skip = (page - 1) * limit
 
-    let query = {
-      $or: [
-        { type: 'post' },
-        {
-          type: 'announcement',
-          $or: [
-            { 'audience.scope': 'all' },
-            {
-              $or: [
-                { 'audience.years': { $size: 0 } },
-                { 'audience.years': user.year },
-              ],
-              $and: [
-                {
-                  $or: [
-                    { 'audience.programs': { $size: 0 } },
-                    { 'audience.programs': user.program },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    }
+    // Fetch full user from DB — JWT only contains id and role
+    const fullUser = await User.findById(req.user.id).select('year program role')
+
+    let query = {}
 
     if (hashtag) {
       const hashtagDoc = await Hashtag.findOne({ label: hashtag.toLowerCase() })
@@ -118,7 +97,24 @@ exports.getFeed = async (req, res) => {
       .populate('authorId', 'name role avatarUrl isVerified')
       .populate('hashtags', 'label')
 
-    res.status(200).json(posts)
+    // Filter announcements by audience using full user data
+    const filtered = posts.filter((post) => {
+      if (post.type !== 'announcement') return true
+      if (post.audience.scope === 'all') return true
+
+      // Targeted — check year and program match
+      const yearMatch =
+        post.audience.years.length === 0 ||
+        post.audience.years.includes(fullUser.year)
+
+      const programMatch =
+        post.audience.programs.length === 0 ||
+        post.audience.programs.includes(fullUser.program)
+
+      return yearMatch && programMatch
+    })
+
+    res.status(200).json(filtered)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
