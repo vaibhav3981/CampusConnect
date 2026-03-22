@@ -1,37 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import api from '../utils/api'
 import Link from 'next/link'
 
+const formatTime = (date) => {
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  return new Date(date).toLocaleDateString()
+}
+
 export default function Feed() {
   const router = useRouter()
+  const fileInputRef = useRef(null)
+  
   const [posts, setPosts] = useState([])
   const [trending, setTrending] = useState([])
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [newPost, setNewPost] = useState('')
-  const [posting, setPosting] = useState(false)
-  const [activeTag, setActiveTag] = useState(null)
 
-  // Announcement form state
+  const [newPost, setNewPost] = useState('')
+  const [mediaFile, setMediaFile] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const [posting, setPosting] = useState(false)
+
   const [showAnnouncement, setShowAnnouncement] = useState(false)
   const [pages, setPages] = useState([])
   const [announcement, setAnnouncement] = useState({
-    textContent: '',
-    pageId: '',
-    scope: 'all',
-    years: [],
-    programs: '',
+    textContent: '', pageId: '', scope: 'all', years: [], programs: ''
   })
-  const [announcing, setAnnouncing] = useState(false)
+
+  const [commentText, setCommentText] = useState({})
+  const [expandedComments, setExpandedComments] = useState({})
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     const userData = localStorage.getItem('user')
-    if (!token) {
-      router.push('/login')
-      return
-    }
+    if (!token) { router.push('/login'); return }
     const parsed = JSON.parse(userData)
     setUser(parsed)
     fetchFeed()
@@ -41,56 +49,49 @@ export default function Feed() {
 
   const fetchFeed = async (tag = null) => {
     setLoading(true)
-    setActiveTag(tag)
     try {
       const url = tag ? `/posts?hashtag=${tag}` : '/posts'
       const res = await api.get(url)
       setPosts(res.data)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { console.error(err) } finally { setLoading(false) }
   }
 
   const fetchTrending = async () => {
     try {
       const res = await api.get('/posts/trending')
       setTrending(res.data)
-    } catch (err) {
-      console.error(err)
-    }
+    } catch (err) { console.error(err) }
   }
 
   const fetchMyPages = async () => {
     try {
       const res = await api.get('/pages/my')
       setPages(res.data)
-    } catch (err) {
-      console.error(err)
-    }
+    } catch (err) { console.error(err) }
   }
 
   const handlePost = async (e) => {
     e.preventDefault()
-    if (!newPost.trim()) return
+    if (!newPost.trim() && !mediaFile) return
     setPosting(true)
     try {
-      const res = await api.post('/posts', { textContent: newPost, type: 'post' })
+      let mediaData = {}
+      if (mediaFile) {
+        const formData = new FormData()
+        formData.append('media', mediaFile)
+        const uploadRes = await api.post('/upload', formData)
+        mediaData = { mediaUrl: uploadRes.data.url, mediaType: uploadRes.data.mediaType }
+      }
+      const res = await api.post('/posts', { textContent: newPost, type: 'post', ...mediaData })
       setPosts([res.data, ...posts])
-      setNewPost('')
+      setNewPost(''); setMediaFile(null); setMediaPreview(null)
       fetchTrending()
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setPosting(false)
-    }
+    } catch (err) { console.error(err) } finally { setPosting(false) }
   }
 
   const handleAnnouncement = async (e) => {
     e.preventDefault()
-    if (!announcement.textContent.trim()) return
-    setAnnouncing(true)
+    setPosting(true)
     try {
       const payload = {
         textContent: announcement.textContent,
@@ -99,303 +100,316 @@ export default function Feed() {
         audience: {
           scope: announcement.scope,
           years: announcement.years.map(Number),
-          programs: announcement.programs ? [announcement.programs] : [],
-          courseCodes: [],
-        },
+          programs: announcement.programs ? [announcement.programs] : []
+        }
       }
       const res = await api.post('/posts', payload)
       setPosts([res.data, ...posts])
       setAnnouncement({ textContent: '', pageId: '', scope: 'all', years: [], programs: '' })
       setShowAnnouncement(false)
-      fetchTrending()
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setAnnouncing(false)
-    }
+    } catch (err) { console.error(err) } finally { setPosting(false) }
   }
 
-  const toggleYear = (year) => {
-    setAnnouncement((prev) => ({
-      ...prev,
-      years: prev.years.includes(year)
-        ? prev.years.filter((y) => y !== year)
-        : [...prev.years, year],
-    }))
+  const handleLike = async (postId) => {
+    try {
+      const res = await api.put(`/posts/${postId}/like`)
+      setPosts(posts.map(p =>
+        p._id === postId
+          ? {
+              ...p,
+              votes: {
+                ...p.votes,
+                upvotes: res.data.upvotes,
+                score: res.data.score,
+              },
+            }
+          : p
+      ))
+    } catch (err) { console.error(err) }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    router.push('/login')
+  const handleComment = async (postId) => {
+    const text = commentText[postId]
+    if (!text?.trim()) return
+    try {
+      const res = await api.post(`/posts/${postId}/comments`, { textContent: text })
+      setPosts(posts.map(p => p._id === postId ? res.data : p))
+      setCommentText({ ...commentText, [postId]: '' })
+    } catch (err) { console.error(err) }
   }
 
-  const inputClass = "w-full bg-gray-800 text-white px-4 py-3 rounded-xl border border-gray-700 focus:outline-none focus:border-blue-500 text-sm"
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    )
+  const handleDeletePost = async (postId) => {
+    if (!confirm('Delete this post?')) return
+    try {
+      await api.delete(`/posts/${postId}`)
+      setPosts(posts.filter(p => p._id !== postId))
+    } catch (err) { console.error(err) }
   }
+
+  const handleDeleteComment = async (postId, commentId) => {
+    if (!confirm('Delete this comment?')) return
+    try {
+      const res = await api.delete(`/posts/${postId}/comments/${commentId}`)
+      setPosts(posts.map(p => p._id === postId ? res.data : p))
+    } catch (err) { console.error(err) }
+  }
+
+  const copyToClipboard = (postId) => {
+    navigator.clipboard.writeText(`${window.location.origin}/post/${postId}`)
+    alert("Link copied!")
+  }
+
+  const isPostOwner = (post) => post.authorId?._id === user?.id || post.authorId === user?.id
+
+  if (loading && posts.length === 0) return (
+    <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center text-gray-500">Loading...</div>
+  )
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-
+    <div className="min-h-screen bg-[#0a0a0b] text-gray-200">
+      
       {/* Navbar */}
-      <nav className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <h1 className="text-lg font-bold text-blue-400">CampusConnect</h1>
-        <div className="flex items-center gap-4">
+      <nav className="sticky top-0 z-50 bg-[#0a0a0b]/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex items-center justify-between">
+        <h1 className="text-sm font-bold text-white uppercase tracking-tighter cursor-pointer" onClick={() => fetchFeed()}>CampusConnect</h1>
+        <div className="flex items-center gap-6">
           {user?.role === 'professor' && (
             <button
               onClick={() => setShowAnnouncement(!showAnnouncement)}
-              className="text-sm bg-amber-500/20 text-amber-400 border border-amber-500/30 px-4 py-1.5 rounded-full hover:bg-amber-500/30 transition"
+              className="text-[10px] font-bold text-amber-500 border border-amber-500/20 bg-amber-500/5 px-4 py-1.5 rounded-full hover:bg-amber-500 hover:text-black transition shadow-[0_0_15px_rgba(245,158,11,0.1)]"
             >
-              + Announcement
+              {showAnnouncement ? '✕ CANCEL' : '+ ANNOUNCEMENT'}
             </button>
           )}
-          {/* Nav links */}
-          <Link href="/feed" className="text-sm text-gray-400 hover:text-white transition">
-            Feed
-          </Link>
-          <Link href="/profile" className="text-sm text-gray-400 hover:text-white transition">
-            {user?.name}
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-gray-500 hover:text-red-400 transition"
-          >
-            Logout
-          </button>
+          <Link href="/profile" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition">{user?.name}</Link>
+          <button onClick={() => { localStorage.clear(); router.push('/login') }} className="text-[10px] font-bold text-red-500/80 hover:text-red-500">LOGOUT</button>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 py-8 flex gap-8">
-
-        {/* Main feed */}
-        <div className="flex-1">
-
-          {/* Professor announcement form */}
+      <div className="max-w-5xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-10">
+        
+        <main>
+          {/* Announcement Form */}
           {user?.role === 'professor' && showAnnouncement && (
-            <form
-              onSubmit={handleAnnouncement}
-              className="bg-gray-900 rounded-2xl p-5 mb-6 border border-amber-500/30"
-            >
-              <h2 className="text-sm font-semibold text-amber-400 mb-4">
-                Create Announcement
-              </h2>
-
-              {pages.length > 0 && (
-                <div className="mb-4">
-                  <label className="text-xs text-gray-400 mb-1 block">Post from page</label>
-                  <select
-                    value={announcement.pageId}
-                    onChange={(e) => setAnnouncement({ ...announcement, pageId: e.target.value })}
-                    className={inputClass}
-                  >
-                    <option value="">Select a page (optional)</option>
-                    {pages.map((p) => (
-                      <option key={p._id} value={p._id}>{p.title}</option>
+            <div className="bg-[#111113] border border-amber-500/30 rounded-2xl p-6 mb-8 shadow-2xl">
+              <h2 className="text-[11px] font-black text-amber-500 uppercase tracking-widest mb-4">Targeted Announcement</h2>
+              <div className="space-y-4">
+                <select 
+                  className="w-full bg-[#0a0a0b] border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-amber-500/50"
+                  onChange={(e) => setAnnouncement({...announcement, pageId: e.target.value})}
+                >
+                  <option value="">Post from Profile</option>
+                  {pages.map(p => <option key={p._id} value={p._id}>{p.title}</option>)}
+                </select>
+                <textarea 
+                  className="w-full bg-[#0a0a0b] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none min-h-[100px] resize-none"
+                  placeholder="Official details..."
+                  value={announcement.textContent}
+                  onChange={(e) => setAnnouncement({...announcement, textContent: e.target.value})}
+                />
+                <div className="flex items-center gap-4 py-2 border-y border-white/5">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">Audience</span>
+                  <div className="flex gap-2">
+                    {['all', 'targeted'].map(s => (
+                      <button key={s} onClick={() => setAnnouncement({...announcement, scope: s})} 
+                        className={`text-[10px] px-4 py-1 rounded-full transition ${announcement.scope === s ? 'bg-amber-500 text-black font-bold' : 'text-gray-500 bg-white/5'}`}>
+                        {s.toUpperCase()}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-              )}
-
-              <textarea
-                value={announcement.textContent}
-                onChange={(e) => setAnnouncement({ ...announcement, textContent: e.target.value })}
-                placeholder="Write your announcement... Use #hashtags"
-                className="w-full bg-gray-800 text-white text-sm px-4 py-3 rounded-xl border border-gray-700 focus:outline-none focus:border-amber-500 resize-none h-24 mb-4"
-              />
-
-              <div className="mb-4">
-                <label className="text-xs text-gray-400 mb-2 block">Audience</label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setAnnouncement({ ...announcement, scope: 'all' })}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition ${
-                      announcement.scope === 'all'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                  >
-                    Everyone
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnnouncement({ ...announcement, scope: 'targeted' })}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition ${
-                      announcement.scope === 'targeted'
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                  >
-                    Targeted
-                  </button>
-                </div>
-              </div>
-
-              {announcement.scope === 'targeted' && (
-                <div className="space-y-4 mb-4 p-4 bg-gray-800 rounded-xl">
-                  <div>
-                    <label className="text-xs text-gray-400 mb-2 block">Target years</label>
-                    <div className="flex flex-wrap gap-2">
-                      {[1, 2, 3].map((year) => (
-                        <button
-                          key={year}
-                          type="button"
-                          onClick={() => toggleYear(year)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                            announcement.years.includes(year)
-                              ? 'bg-amber-500 text-white'
-                              : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                          }`}
-                        >
-                          Year {year}
-                        </button>
+                {announcement.scope === 'targeted' && (
+                  <div className="p-4 bg-black/40 rounded-xl space-y-4">
+                    <div className="flex gap-2">
+                      {[1,2,3].map(y => (
+                        <button key={y} onClick={() => setAnnouncement(prev => ({...prev, years: prev.years.includes(y) ? prev.years.filter(i=>i!==y) : [...prev.years, y]}))}
+                          className={`flex-1 py-2 text-[10px] rounded border transition ${announcement.years.includes(y) ? 'border-amber-500 text-amber-500 bg-amber-500/5' : 'border-white/5 text-gray-600'}`}>Year {y}</button>
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Target program</label>
-                    <input
-                      type="text"
-                      value={announcement.programs}
-                      onChange={(e) => setAnnouncement({ ...announcement, programs: e.target.value })}
-                      placeholder="e.g. Data Analysis"
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAnnouncement(false)}
-                  className="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-white transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={announcing || !announcement.textContent.trim()}
-                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50"
-                >
-                  {announcing ? 'Posting...' : 'Post announcement'}
-                </button>
+                )}
+                <button onClick={handleAnnouncement} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black py-3 rounded-xl text-[11px] transition">PUBLISH ANNOUNCEMENT</button>
               </div>
-            </form>
-          )}
-
-          {/* Create post box — students always, professors when announcement form is hidden */}
-          {(user?.role !== 'professor' || !showAnnouncement) && (
-            <form onSubmit={handlePost} className="bg-gray-900 rounded-2xl p-5 mb-6 border border-gray-800">
-              <textarea
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                placeholder={user?.role === 'professor' ? 'Share something with everyone... Use #hashtags' : "What's on your mind? Use #hashtags"}
-                className="w-full bg-gray-800 text-white text-sm px-4 py-3 rounded-xl border border-gray-700 focus:outline-none focus:border-blue-500 resize-none h-24"
-              />
-              <div className="flex justify-end mt-3">
-                <button
-                  type="submit"
-                  disabled={posting || !newPost.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50"
-                >
-                  {posting ? 'Posting...' : 'Post'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Active hashtag filter */}
-          {activeTag && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-blue-400">#{activeTag}</span>
-              <button
-                onClick={() => fetchFeed(null)}
-                className="text-xs text-gray-500 hover:text-red-400 transition"
-              >
-                ✕ clear filter
-              </button>
             </div>
           )}
 
-          {/* Posts list */}
-          {posts.length === 0 ? (
-            <p className="text-center text-gray-500 text-sm mt-12">No posts yet. Be the first!</p>
-          ) : (
-            <div className="space-y-4">
-              {posts.map((post) => (
-                <div
-                  key={post._id}
-                  className={`bg-gray-900 rounded-2xl p-5 border ${
-                    post.type === 'announcement' ? 'border-amber-500/30' : 'border-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                      post.authorId?.role === 'professor' ? 'bg-amber-600' : 'bg-blue-600'
-                    }`}>
+          {/* Post Box */}
+          {(!showAnnouncement || user?.role !== 'professor') && (
+            <div className="bg-[#111113] border border-white/5 rounded-2xl p-4 mb-8">
+              <textarea 
+                className="w-full bg-transparent border-none text-sm focus:ring-0 placeholder-gray-600 min-h-[60px] resize-none outline-none"
+                placeholder={user?.role === 'professor' ? "Share a general update..." : "What's on your mind? Use #hashtags"}
+                value={newPost}
+                onChange={(e) => setNewPost(e.target.value)}
+              />
+              {mediaPreview && (
+                <div className="relative mb-4 rounded-xl overflow-hidden max-h-60 border border-white/10">
+                  <img src={mediaPreview} className="w-full h-full object-cover" alt="" />
+                  <button onClick={() => {setMediaPreview(null); setMediaFile(null)}} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-xs">✕</button>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                <button onClick={() => fileInputRef.current.click()} className="p-2 hover:bg-white/5 rounded-lg transition grayscale hover:grayscale-0">🖼️</button>
+                <input type="file" ref={fileInputRef} hidden accept="image/*,video/*" onChange={(e) => {
+                  const file = e.target.files[0]
+                  if(file) { setMediaFile(file); setMediaPreview(URL.createObjectURL(file)) }
+                }} />
+                <button onClick={handlePost} disabled={posting || (!newPost.trim() && !mediaFile)}
+                  className="bg-white text-black px-6 py-1.5 rounded-full text-[11px] font-bold hover:bg-gray-200 disabled:opacity-20 transition">
+                  {posting ? 'POSTING...' : 'POST'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Posts Feed */}
+          <div className="space-y-4">
+            {posts.map((post) => (
+              <div key={post._id} className={`bg-[#111113] border rounded-2xl p-5 transition-all ${post.type === 'announcement' ? 'border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.03)]' : 'border-white/5'}`}>
+                
+                {/* Post header */}
+                <div className="flex justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white ${post.authorId?.role === 'professor' ? 'bg-amber-600' : post.authorId?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'}`}>
                       {post.authorId?.name?.[0]}
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{post.authorId?.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {post.authorId?.role} · {new Date(post.createdAt).toLocaleDateString()}
-                      </p>
+                      <p className="text-xs font-bold">{post.authorId?.name}</p>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-tighter">{post.authorId?.role} • {formatTime(post.createdAt)}</p>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
                     {post.type === 'announcement' && (
-                      <span className="ml-auto text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-full border border-amber-500/30">
-                        Announcement
-                      </span>
+                      <span className="text-[9px] font-black text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-widest">Official</span>
+                    )}
+                    {/* Delete post — only visible to post owner */}
+                    {isPostOwner(post) && (
+                      <button
+                        onClick={() => handleDeletePost(post._id)}
+                        className="text-[9px] text-gray-600 hover:text-red-500 transition px-1"
+                        title="Delete post"
+                      >
+                        🗑
+                      </button>
                     )}
                   </div>
-                  <p className="text-sm text-gray-200 leading-relaxed">{post.textContent}</p>
-                  {post.hashtags?.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {post.hashtags.map((tag) => (
-                        <button
-                          key={tag._id}
-                          onClick={() => fetchFeed(tag.label)}
-                          className="text-xs text-blue-400 hover:underline"
-                        >
-                          #{tag.label}
-                        </button>
+                </div>
+                
+                {post.textContent && (
+                  <p className="text-sm text-gray-300 mb-4 whitespace-pre-wrap">{post.textContent}</p>
+                )}
+                
+                {post.mediaUrl && (
+                  <div className="mb-4 rounded-xl overflow-hidden border border-white/5 bg-black">
+                    {post.mediaType === 'video'
+                      ? <video src={post.mediaUrl} className="w-full max-h-[400px] object-contain" controls />
+                      : <img src={post.mediaUrl} className="w-full max-h-[400px] object-contain" alt="" />
+                    }
+                  </div>
+                )}
+
+                {post.hashtags?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {post.hashtags.map(tag => (
+                      <button key={tag._id} onClick={() => fetchFeed(tag.label)}
+                        className="text-[11px] text-blue-400 hover:underline">
+                        #{tag.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action bar */}
+                <div className="flex items-center gap-6 pt-4 border-t border-white/5">
+                  <button 
+                    onClick={() => handleLike(post._id)}
+                    className={`text-[11px] flex items-center gap-1.5 transition ${
+                      post.votes?.upvotes?.map(id => (id._id || id).toString()).includes(user?.id)
+                        ? 'text-red-500'
+                        : 'text-gray-500 hover:text-white'
+                    }`}
+                  >
+                    {post.votes?.upvotes?.map(id => (id._id || id).toString()).includes(user?.id) ? '❤️' : '🤍'} {post.votes?.upvotes?.length || 0}
+                  </button>
+                  <button 
+                    onClick={() => setExpandedComments({ ...expandedComments, [post._id]: !expandedComments[post._id] })}
+                    className="text-[11px] text-gray-500 hover:text-white flex items-center gap-1.5 transition"
+                  >
+                    💬 {post.comments?.length || 0}
+                  </button>
+                  <button onClick={() => copyToClipboard(post._id)} className="text-[11px] text-gray-500 hover:text-blue-400 flex items-center gap-1.5 transition ml-auto">🔗 Share</button>
+                </div>
+
+                {/* Comment Section */}
+                {expandedComments[post._id] && (
+                  <div className="mt-4 pt-4 border-t border-white/5">
+                    <div className="space-y-3 mb-4">
+                      {post.comments?.map((c) => (
+                        <div key={c._id} className="flex gap-2 group">
+                          <div className="w-5 h-5 rounded bg-gray-800 text-[8px] flex items-center justify-center shrink-0">{c.authorName?.[0]}</div>
+                          <div className="bg-white/5 p-2 rounded-lg flex-1">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <p className="text-[10px] font-bold text-gray-400">{c.authorName}</p>
+                              {/* Delete comment — visible to comment author or post owner */}
+                              {(c.authorId === user?.id || c.authorId?.toString() === user?.id || isPostOwner(post)) && (
+                                <button
+                                  onClick={() => handleDeleteComment(post._id, c._id)}
+                                  className="text-[9px] text-gray-700 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                                  title="Delete comment"
+                                >
+                                  🗑
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-300">{c.textContent}</p>
+                          </div>
+                        </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Trending sidebar */}
-        <div className="w-64 hidden md:block">
-          <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800 sticky top-24">
-            <h2 className="text-sm font-semibold text-gray-300 mb-4">Trending</h2>
-            {trending.length === 0 ? (
-              <p className="text-xs text-gray-500">No trending topics yet</p>
-            ) : (
-              <div className="space-y-3">
-                {trending.map((tag) => (
-                  <div
-                    key={tag._id}
-                    className="flex items-center justify-between cursor-pointer hover:opacity-75 transition"
-                    onClick={() => fetchFeed(tag.label)}
-                  >
-                    <span className="text-sm text-blue-400">#{tag.label}</span>
-                    <span className="text-xs text-gray-500">{tag.postCount} posts</span>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Write a reply..."
+                        className="flex-1 bg-white/5 border border-white/5 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-blue-500/50"
+                        value={commentText[post._id] || ''}
+                        onChange={(e) => setCommentText({...commentText, [post._id]: e.target.value})}
+                        onKeyDown={(e) => e.key === 'Enter' && handleComment(post._id)}
+                      />
+                      <button onClick={() => handleComment(post._id)} className="text-[10px] font-bold text-blue-500">SEND</button>
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
-            )}
+            ))}
           </div>
-        </div>
+        </main>
+
+        {/* Trending Sidebar */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-24">
+            <div className="bg-[#111113] border border-white/5 rounded-2xl p-5 mb-6">
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span> Trending Now
+              </h3>
+              <div className="space-y-4">
+                {trending.length === 0 ? (
+                  <p className="text-[10px] text-gray-600 italic">No trends yet...</p>
+                ) : (
+                  trending.map(tag => (
+                    <div key={tag._id} onClick={() => fetchFeed(tag.label)} className="group flex justify-between items-center py-1 cursor-pointer">
+                      <span className="text-xs text-gray-400 group-hover:text-blue-400 transition">#{tag.label}</span>
+                      <span className="text-[10px] font-mono text-gray-700">{tag.postCount} posts</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            <div className="px-5 text-[9px] text-gray-700 flex flex-wrap gap-x-4 gap-y-2 uppercase font-bold">
+              <Link href="/profile" className="hover:text-gray-400">Profile</Link>
+              <span>© 2026 CampusConnect</span>
+            </div>
+          </div>
+        </aside>
 
       </div>
     </div>

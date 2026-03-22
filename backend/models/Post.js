@@ -6,7 +6,7 @@ const postSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true, // Speeds up "find my posts"
+      index: true,
     },
     pageId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -29,14 +29,14 @@ const postSchema = new mongoose.Schema(
     mediaUrl: { type: String, default: null },
     mediaType: {
       type: String,
-      enum: ['image', 'video', null], // 'text' removed — redundant
+      enum: ['image', 'video', null],
       default: null,
     },
     mediaPublicId: { type: String, default: null },
     mediaDuration: {
       type: Number,
       default: null,
-      max: 15, // Shorts/Stories style
+      max: 15,
     },
 
     // Hashtags
@@ -44,7 +44,7 @@ const postSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Hashtag',
-        index: true, // Critical for hashtag feed
+        index: true,
       },
     ],
 
@@ -60,12 +60,36 @@ const postSchema = new mongoose.Schema(
       courseCodes: { type: [String], default: [] },
     },
 
-    // Votes (parked for later)
+    // Votes
     votes: {
       upvotes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       downvotes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       score: { type: Number, default: 0 },
     },
+
+    // Comments
+    comments: [
+      {
+        authorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        authorName: {
+          type: String,
+          required: true,
+        },
+        textContent: {
+          type: String,
+          required: true,
+          maxlength: 300,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -74,6 +98,5 @@ const postSchema = new mongoose.Schema(
 
 // Compound index — optimizes fetching newest posts first
 postSchema.index({ createdAt: -1 })
-
 
 module.exports = mongoose.model('Post', postSchema)

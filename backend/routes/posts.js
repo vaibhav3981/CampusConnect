@@ -6,6 +6,9 @@ const {
   getPost,
   deletePost,
   getTrending,
+  likePost,
+  addComment,
+  deleteComment,
 } = require('../controllers/postController');
 const authMiddleware = require('../middleware/authMiddleware');
 
@@ -18,8 +21,11 @@ router.get('/', authMiddleware, getFeed);
 // 3. Dynamic GET routes (Parameterized)
 router.get('/:id', authMiddleware, getPost);
 
-// 4. POST / DELETE routes
+// 4. POST / DELETE / PUT routes
 router.post('/', authMiddleware, createPost);
 router.delete('/:id', authMiddleware, deletePost);
+router.put('/:id/like', authMiddleware, likePost);
+router.post('/:id/comments', authMiddleware, addComment);
+router.delete('/:id/comments/:commentId', authMiddleware, deleteComment);
 
 module.exports = router;

@@ -66,6 +66,7 @@ exports.createPost = async (req, res) => {
 
     await post.populate('authorId', 'name role avatarUrl')
     await post.populate('hashtags', 'label')
+    await post.populate('votes.upvotes', '_id')
 
     res.status(201).json(post)
   } catch (err) {
@@ -79,7 +80,6 @@ exports.getFeed = async (req, res) => {
     const { hashtag, page = 1, limit = 10 } = req.query
     const skip = (page - 1) * limit
 
-    // Fetch full user from DB — JWT only contains id and role
     const fullUser = await User.findById(req.user.id).select('year program role')
 
     let query = {}
@@ -96,19 +96,14 @@ exports.getFeed = async (req, res) => {
       .limit(Number(limit))
       .populate('authorId', 'name role avatarUrl isVerified')
       .populate('hashtags', 'label')
+      .populate('votes.upvotes', '_id')
 
-    // Filter announcements by audience using full user data
     const filtered = posts.filter((post) => {
       if (post.type !== 'announcement') return true
       if (post.audience.scope === 'all') return true
-
-      // Professors always see all announcements
       if (fullUser.role === 'professor') return true
-
-      // Alumni see all announcements too
       if (fullUser.role === 'alumni') return true
 
-      // Students — check year and program match
       const yearMatch =
         post.audience.years.length === 0 ||
         post.audience.years.includes(fullUser.year)
@@ -132,6 +127,7 @@ exports.getPost = async (req, res) => {
     const post = await Post.findById(req.params.id)
       .populate('authorId', 'name role avatarUrl isVerified')
       .populate('hashtags', 'label')
+      .populate('votes.upvotes', '_id')
 
     if (!post) return res.status(404).json({ message: 'Post not found' })
 
@@ -152,6 +148,11 @@ exports.deletePost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorised to delete this post' })
     }
 
+    if (post.mediaPublicId) {
+      const { cloudinary } = require('../config/cloudinary')
+      await cloudinary.uploader.destroy(post.mediaPublicId)
+    }
+
     await post.deleteOne()
     res.status(200).json({ message: 'Post deleted' })
   } catch (err) {
@@ -167,6 +168,93 @@ exports.getTrending = async (req, res) => {
       .limit(10)
 
     res.status(200).json(hashtags)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Like / unlike a post
+exports.likePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+    if (!post) return res.status(404).json({ message: 'Post not found' })
+
+    const userId = req.user.id
+    const alreadyLiked = post.votes.upvotes.map(id => id.toString()).includes(userId)
+
+    if (alreadyLiked) {
+      post.votes.upvotes = post.votes.upvotes.filter(
+        (id) => id.toString() !== userId
+      )
+      post.votes.score -= 1
+    } else {
+      post.votes.upvotes.push(userId)
+      post.votes.score += 1
+    }
+
+    await post.save()
+    res.status(200).json({
+      liked: !alreadyLiked,
+      score: post.votes.score,
+      upvotes: post.votes.upvotes,
+    })
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Add comment
+exports.addComment = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+    if (!post) return res.status(404).json({ message: 'Post not found' })
+
+    if (!req.body.textContent?.trim()) {
+      return res.status(400).json({ message: 'Comment cannot be empty' })
+    }
+
+    const user = await User.findById(req.user.id).select('name')
+
+    post.comments.push({
+      authorId: req.user.id,
+      authorName: user.name,
+      textContent: req.body.textContent,
+    })
+
+    await post.save()
+    await post.populate('authorId', 'name role avatarUrl isVerified')
+    await post.populate('hashtags', 'label')
+    await post.populate('votes.upvotes', '_id')
+
+    res.status(201).json(post)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Delete a comment
+exports.deleteComment = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+    if (!post) return res.status(404).json({ message: 'Post not found' })
+
+    const comment = post.comments.id(req.params.commentId)
+    if (!comment) return res.status(404).json({ message: 'Comment not found' })
+
+    const isCommentAuthor = comment.authorId.toString() === req.user.id
+    const isPostAuthor = post.authorId.toString() === req.user.id
+
+    if (!isCommentAuthor && !isPostAuthor) {
+      return res.status(403).json({ message: 'Not authorised to delete this comment' })
+    }
+
+    comment.deleteOne()
+    await post.save()
+    await post.populate('authorId', 'name role avatarUrl isVerified')
+    await post.populate('hashtags', 'label')
+    await post.populate('votes.upvotes', '_id')
+
+    res.status(200).json(post)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
