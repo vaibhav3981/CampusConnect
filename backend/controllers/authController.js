@@ -92,3 +92,28 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+// Update profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const { bio, program, year, department, degree, graduationYear } = req.body
+
+    const updated = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: {
+          bio,
+          program,
+          year,
+          department,
+          degree,
+          graduationYear,
+        },
+      },
+      { new: true }
+    ).select('-passwordHash')
+
+    res.status(200).json(updated)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}

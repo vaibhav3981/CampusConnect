@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import api from '../utils/api'
+import Link from 'next/link'
 
 export default function Feed() {
   const router = useRouter()
@@ -154,7 +155,13 @@ export default function Feed() {
               + Announcement
             </button>
           )}
-          <span className="text-sm text-gray-400">{user?.name}</span>
+          {/* Nav links */}
+          <Link href="/feed" className="text-sm text-gray-400 hover:text-white transition">
+            Feed
+          </Link>
+          <Link href="/profile" className="text-sm text-gray-400 hover:text-white transition">
+            {user?.name}
+          </Link>
           <button
             onClick={handleLogout}
             className="text-sm text-gray-500 hover:text-red-400 transition"
