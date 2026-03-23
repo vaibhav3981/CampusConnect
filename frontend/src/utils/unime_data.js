@@ -126,9 +126,9 @@ export const academicCalendar = {
   // ─────────────────────────────────────────
   export const mensaLocations = [
     { id: 'mensa_papardo',    name: 'Mensa Papardo Campus', campus: 'Papardo',    address: 'C/da Papardo, Ganzirri',   lat: 38.2621, lng: 15.5976, hours: { lunch: '12:00 – 14:30', dinner: null },              days: 'Mon – Fri',    price: '€2.50 full meal', app: 'ERSU Messina App' },
-    { id: 'mensa_central',    name: 'Mensa Ghibellina',     campus: 'Central',    address: 'Via Ghibellina, 146',      lat: 38.1935, lng: 15.5576, hours: { lunch: '12:00 – 14:30', dinner: '19:00 – 20:30' }, days: '7 days/week',  price: '€2.50 full meal', app: 'ERSU Messina App' },
-    { id: 'mensa_annunziata', name: 'Mensa Annunziata',     campus: 'Annunziata', address: 'C/da Battaglia',           lat: 38.1788, lng: 15.5312, hours: { lunch: '12:00 – 14:30', dinner: '19:00 – 20:30' }, days: '7 days/week',  price: '€2.50 full meal', app: 'ERSU Messina App' },
-    { id: 'mensa_policlinico',name: 'Mensa Policlinico',    campus: 'Policlinico',address: 'Via Consolare Valeria',    lat: 38.2101, lng: 15.5649, hours: { lunch: '12:00 – 14:30', dinner: null },              days: 'Mon – Fri',    price: '€2.50 full meal', app: 'ERSU Messina App' },
+    { id: 'mensa_central',    name: 'Mensa Ghibellina',     campus: 'Central',    address: 'Via Ghibellina, 146',      lat: 38.1856870151483, lng: 15.552156923335287, hours: { lunch: '12:00 – 14:30', dinner: '19:00 – 20:30' }, days: '7 days/week',  price: '€2.50 full meal', app: 'ERSU Messina App' },
+    { id: 'mensa_annunziata', name: 'Mensa Annunziata',     campus: 'Annunziata', address: 'C/da Battaglia',           lat: 38.229626929658195, lng: 15.550354585170671, hours: { lunch: '12:00 – 14:30', dinner: '19:00 – 20:30' }, days: '7 days/week',  price: '€2.50 full meal', app: 'ERSU Messina App' },
+    { id: 'mensa_policlinico',name: 'Mensa Policlinico',    campus: 'Policlinico',address: 'Via Consolare Valeria',    lat: 38.16389991614373, lng: 15.536213185374976, hours: { lunch: '12:00 – 14:30', dinner: null },              days: 'Mon – Fri',    price: '€2.50 full meal', app: 'ERSU Messina App' },
   ]
   
   // ─────────────────────────────────────────
@@ -136,8 +136,8 @@ export const academicCalendar = {
   // ─────────────────────────────────────────
   export const residences = [
     { id: 'ersu_papardo',    name: 'ERSU Residence Papardo',    campus: 'Papardo',    lat: 38.2629, lng: 15.5957, description: 'Student residential halls managed by ERSU. On-site laundry, common rooms, Wi-Fi.' },
-    { id: 'ersu_annunziata', name: 'ERSU Residence Annunziata', campus: 'Annunziata', lat: 38.1788, lng: 15.5298, description: 'Student halls near the Annunziata campus.' },
-    { id: 'ersu_gravitelli', name: 'Gravitelli Residence',      campus: 'Central',    lat: 38.2053, lng: 15.5521, description: 'City-centre student housing near the main university buildings.' },
+    { id: 'ersu_annunziata', name: 'ERSU Residence Annunziata', campus: 'Annunziata', lat: 38.22941956651129, lng: 15.550401989991068, description: 'Student halls near the Annunziata campus.' },
+    { id: 'ersu_gravitelli', name: 'Gravitelli Residence',      campus: 'Central',    lat: 38.19493050332314, lng: 15.539964971602894, description: 'City-centre student housing near the main university buildings.' },
   ]
   
   // ─────────────────────────────────────────
@@ -145,9 +145,9 @@ export const academicCalendar = {
   // ─────────────────────────────────────────
   export const libraries = [
     { name: 'SBA — Polo Papardo',     campus: 'Papardo',     lat: 38.2612, lng: 15.5972, url: 'https://sba.unime.it' },
-    { name: 'SBA — Polo Annunziata',  campus: 'Annunziata',  lat: 38.1795, lng: 15.5305, url: 'https://sba.unime.it' },
-    { name: 'SBA — Polo Centrale',    campus: 'Central',     lat: 38.1940, lng: 15.5562, url: 'https://sba.unime.it' },
-    { name: 'SBA — Polo Policlinico', campus: 'Policlinico', lat: 38.2098, lng: 15.5654, url: 'https://sba.unime.it' },
+    { name: 'SBA — Polo Annunziata',  campus: 'Annunziata',  lat: 38.23092899514196, lng: 15.551055572982621, url: 'https://sba.unime.it' },
+    { name: 'SBA — Polo Centrale',    campus: 'Central',     lat: 38.217223778333306, lng: 15.547109750661265, url: 'https://sba.unime.it' },
+    { name: 'SBA — Polo Policlinico', campus: 'Policlinico', lat: 38.165430479791375, lng: 15.538034390163299, url: 'https://sba.unime.it' },
   ]
   
   // ─────────────────────────────────────────
@@ -169,9 +169,9 @@ export const academicCalendar = {
   // ─────────────────────────────────────────
   export const campuses = [
     { id: 'papardo',     name: 'Papardo Campus',       center: { lat: 38.2605, lng: 15.5977 }, defaultZoom: 17, description: 'Engineering, Mathematics, Physics, Computer Science, Earth Sciences', departments: ['MIFT', 'DIECII'] },
-    { id: 'annunziata',  name: 'Annunziata Campus',    center: { lat: 38.1788, lng: 15.5310 }, defaultZoom: 16, description: 'Chemistry, Biology, Pharmacy, Veterinary, Cognitive Sciences, Humanities', departments: ['CHIBIOFARAM', 'VET', 'COSPECS', 'DICAM'] },
-    { id: 'central',     name: 'Central Campus',       center: { lat: 38.1935, lng: 15.5570 }, defaultZoom: 16, description: 'Law, Economics, Political Sciences — city centre', departments: ['GIUR', 'ECONOMIA', 'SCIPOG'] },
-    { id: 'policlinico', name: 'Policlinico G. Martino', center: { lat: 38.2100, lng: 15.5650 }, defaultZoom: 16, description: 'Medicine, Dentistry, Biomedical Sciences', departments: ['DIMED', 'BIOMORF', 'DETEV'] },
+    { id: 'annunziata',  name: 'Annunziata Campus',    center: { lat: 38.2295, lng: 15.5505 }, defaultZoom: 16, description: 'Chemistry, Biology, Pharmacy, Veterinary, Cognitive Sciences, Humanities', departments: ['CHIBIOFARAM', 'VET', 'COSPECS', 'DICAM'] },
+    { id: 'central',     name: 'Central Campus',       center: { lat: 38.1894, lng: 15.5535 }, defaultZoom: 16, description: 'Law, Economics, Political Sciences — city centre', departments: ['GIUR', 'ECONOMIA', 'SCIPOG'] },
+    { id: 'policlinico', name: 'Policlinico G. Martino', center: { lat: 38.1657, lng: 15.5372 }, defaultZoom: 16, description: 'Medicine, Dentistry, Biomedical Sciences', departments: ['DIMED', 'BIOMORF', 'DETEV'] },
   ]
   
   // ─────────────────────────────────────────
