@@ -76,6 +76,7 @@ exports.login = async (req, res) => {
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
+        avatarUrl: user.avatarUrl || null,
       },
     })
   } catch (err) {
@@ -96,24 +97,54 @@ exports.getMe = async (req, res) => {
 // Update profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { bio, program, year, department, degree, graduationYear } = req.body
+    const { bio, program, year, department, degree, graduationYear, avatarUrl } = req.body
+
+    const updates = {}
+    if (bio !== undefined) updates.bio = bio
+    if (program !== undefined) updates.program = program
+    if (year !== undefined) updates.year = year
+    if (department !== undefined) updates.department = department
+    if (degree !== undefined) updates.degree = degree
+    if (graduationYear !== undefined) updates.graduationYear = graduationYear
+    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl
 
     const updated = await User.findByIdAndUpdate(
       req.user.id,
-      {
-        $set: {
-          bio,
-          program,
-          year,
-          department,
-          degree,
-          graduationYear,
-        },
-      },
+      { $set: updates },
       { new: true }
     ).select('-passwordHash')
 
     res.status(200).json(updated)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Look up user by @mention handle
+exports.getUserByMention = async (req, res) => {
+  try {
+    const handle = req.params.handle.toLowerCase()
+    const user = await User.findOne({
+      $expr: {
+        $eq: [
+          { $toLower: { $replaceAll: { input: '$name', find: ' ', replacement: '' } } },
+          handle,
+        ],
+      },
+    }).select('_id name role')
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    res.status(200).json(user)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// Get any user's public profile by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('name role bio program year department degree graduationYear avatarUrl isVerified')
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    res.status(200).json(user)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message })
   }

@@ -2,6 +2,23 @@ const Post = require('../models/Post')
 const Hashtag = require('../models/Hashtag')
 const User = require('../models/User')
 
+const { createNotification } = require('./notificationController')
+
+// Extract user IDs for @mention handles in text
+const extractMentionedUserIds = async (text) => {
+  const handles = [...new Set((text.match(/@(\w+)/g) || []).map(m => m.slice(1).toLowerCase()))]
+  if (!handles.length) return []
+  const users = await User.find({
+    $expr: {
+      $in: [
+        { $toLower: { $replaceAll: { input: '$name', find: ' ', replacement: '' } } },
+        handles,
+      ],
+    },
+  }).select('_id')
+  return users.map(u => u._id)
+}
+
 // Optimized hashtag helper
 const extractHashtags = async (text) => {
   const matches = [...new Set(text.match(/#[a-zA-Z0-9_]+/g))]
@@ -67,6 +84,19 @@ exports.createPost = async (req, res) => {
     await post.populate('authorId', 'name role avatarUrl')
     await post.populate('hashtags', 'label')
     await post.populate('votes.upvotes', '_id')
+
+    if (textContent) {
+      const mentionedIds = await extractMentionedUserIds(textContent)
+      for (const uid of mentionedIds) {
+        await createNotification({
+          recipientId: uid,
+          senderId: req.user.id,
+          type: 'mention',
+          postId: post._id,
+          message: 'mentioned you in a post',
+        })
+      }
+    }
 
     res.status(201).json(post)
   } catch (err) {
@@ -193,6 +223,17 @@ exports.likePost = async (req, res) => {
     }
 
     await post.save()
+
+    if (!alreadyLiked) {
+      await createNotification({
+        recipientId: post.authorId,
+        senderId: userId,
+        type: 'like',
+        postId: post._id,
+        message: 'liked your post',
+      })
+    }
+
     res.status(200).json({
       liked: !alreadyLiked,
       score: post.votes.score,
@@ -222,6 +263,26 @@ exports.addComment = async (req, res) => {
     })
 
     await post.save()
+
+    await createNotification({
+      recipientId: post.authorId,
+      senderId: req.user.id,
+      type: 'comment',
+      postId: post._id,
+      message: 'commented on your post',
+    })
+
+    const mentionedIds = await extractMentionedUserIds(req.body.textContent)
+    for (const uid of mentionedIds) {
+      await createNotification({
+        recipientId: uid,
+        senderId: req.user.id,
+        type: 'mention',
+        postId: post._id,
+        message: 'mentioned you in a comment',
+      })
+    }
+
     await post.populate('authorId', 'name role avatarUrl isVerified')
     await post.populate('hashtags', 'label')
     await post.populate('votes.upvotes', '_id')

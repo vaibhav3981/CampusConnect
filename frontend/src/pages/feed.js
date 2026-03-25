@@ -4,7 +4,6 @@ import api from '../utils/api'
 import Link from 'next/link'
 import { Home, MapPin, LayoutGrid, Bell } from 'lucide-react'
 
-
 const formatTime = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000)
   if (seconds < 60) return 'just now'
@@ -15,7 +14,20 @@ const formatTime = (date) => {
   return new Date(date).toLocaleDateString()
 }
 
-// @ mention text renderer
+// Reusable avatar — shows photo if available, else initial letter
+const Avatar = ({ user: u, size = 'md' }) => {
+  const sizeClass = size === 'sm' ? 'w-5 h-5 text-[9px]' : size === 'xs' ? 'w-5 h-5 text-[9px]' : 'w-8 h-8 text-xs'
+  const roleColor = u?.role === 'professor' ? 'bg-amber-600' : u?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'
+  if (u?.avatarUrl) {
+    return <img src={u.avatarUrl} alt={u.name} className={`${sizeClass} rounded-full object-cover shrink-0`} />
+  }
+  return (
+    <div className={`${sizeClass} rounded-full flex items-center justify-center font-bold text-white shrink-0 ${roleColor}`}>
+      {u?.name?.[0]}
+    </div>
+  )
+}
+
 const renderWithMentions = (text) => {
   if (!text) return null
   const parts = text.split(/(@\w+)/g)
@@ -26,9 +38,7 @@ const renderWithMentions = (text) => {
   )
 }
 
-// @ mention input hook
 function useMentionInput(value, setValue) {
-  const [mentionQuery, setMentionQuery] = useState('')
   const [mentionResults, setMentionResults] = useState([])
   const [showMentions, setShowMentions] = useState(false)
   const debounceRef = useRef(null)
@@ -40,7 +50,6 @@ function useMentionInput(value, setValue) {
     if (lastAtIndex !== -1) {
       const query = val.slice(lastAtIndex + 1).split(' ')[0]
       if (query.length > 0) {
-        setMentionQuery(query)
         setShowMentions(true)
         clearTimeout(debounceRef.current)
         debounceRef.current = setTimeout(async () => {
@@ -76,6 +85,7 @@ export default function Feed() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   const [newPost, setNewPost] = useState('')
   const [mediaFile, setMediaFile] = useState(null)
@@ -103,6 +113,8 @@ export default function Feed() {
     fetchFeed()
     fetchTrending()
     if (parsed.role === 'professor') fetchMyPages()
+    // Fetch unread notification count
+    api.get('/notifications/unread').then(res => setUnreadCount(res.data.count)).catch(() => {})
 
     const handleClickOutside = (e) => {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
@@ -180,7 +192,7 @@ export default function Feed() {
       const res = await api.put(`/posts/${postId}/like`)
       setPosts(posts.map(p =>
         p._id === postId
-          ? { ...p, votes: { ...p.votes, upvotes: res.data.upvotes, score: res.data.score } }
+          ? { ...p, votes: { ...p.votes, upvotes: res.data.upvotes.map(id => ({ _id: id })), score: res.data.score } }
           : p
       ))
     } catch (err) { console.error(err) }
@@ -267,21 +279,23 @@ export default function Feed() {
         </h1>
 
         <div className="hidden md:flex items-center gap-1">
-        <button
-  onClick={() => fetchFeed()}
-  className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest"
->
-  <Home size={13} /> Feed
-</button>
-<Link href="/map" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
-  <MapPin size={13} /> Find a Place
-</Link>
-<Link href="/timetable" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
-  <LayoutGrid size={13} /> Services
-</Link>
-<Link href="/notifications" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
-  <Bell size={13} /> Notifications
-</Link>
+          <button onClick={() => fetchFeed()} className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
+            <Home size={13} /> Feed
+          </button>
+          <Link href="/map" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
+            <MapPin size={13} /> Find a Place
+          </Link>
+          <Link href="/timetable" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
+            <LayoutGrid size={13} /> Services
+          </Link>
+          <Link href="/notifications" className="relative flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
+            <Bell size={13} /> Notifications
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -293,9 +307,7 @@ export default function Feed() {
 
           <div className="relative" ref={profileDropdownRef}>
             <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition">
-              <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white ${user?.role === 'professor' ? 'bg-amber-600' : user?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'}`}>
-                {user?.name?.[0]}
-              </div>
+              <Avatar user={user} size="sm" />
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hidden sm:block">
                 {user?.name?.split(' ')[0]}
               </span>
@@ -401,9 +413,7 @@ export default function Feed() {
               <div key={post._id} className={`bg-[#111113] border rounded-2xl p-5 transition-all ${post.type === 'announcement' ? 'border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.03)]' : 'border-white/5'}`}>
                 <div className="flex justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white ${post.authorId?.role === 'professor' ? 'bg-amber-600' : post.authorId?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'}`}>
-                      {post.authorId?.name?.[0]}
-                    </div>
+                    <Avatar user={post.authorId} size="md" />
                     <div>
                       <p className="text-xs font-bold">{post.authorId?.name}</p>
                       <p className="text-[9px] text-gray-500 uppercase tracking-tighter">{post.authorId?.role} • {formatTime(post.createdAt)}</p>
@@ -420,6 +430,14 @@ export default function Feed() {
                 {post.mediaUrl && (
                   <div className="mb-4 rounded-xl overflow-hidden border border-white/5 bg-black">
                     {post.mediaType === 'video' ? <video src={post.mediaUrl} className="w-full max-h-[400px] object-contain" controls /> : <img src={post.mediaUrl} className="w-full max-h-[400px] object-contain" alt="" />}
+                  </div>
+                )}
+
+                {post.hashtags?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {post.hashtags.map(tag => (
+                      <button key={tag._id} onClick={() => fetchFeed(tag.label)} className="text-[11px] text-blue-400 hover:underline">#{tag.label}</button>
+                    ))}
                   </div>
                 )}
 

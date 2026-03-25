@@ -17,6 +17,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/pages', require('./routes/pages')); // Added back as per Claude's reminder
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/notifications', require('./routes/notifications'))
 
 // 4. Start Server
 const PORT = process.env.PORT || 3001;
