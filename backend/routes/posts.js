@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createPost,
   getFeed,
+  getPostsByUser,
   getPost,
   deletePost,
   getTrending,
@@ -17,6 +18,7 @@ router.get('/trending', authMiddleware, getTrending);
 
 // 2. General GET routes
 router.get('/', authMiddleware, getFeed);
+router.get('/user/:userId', authMiddleware, getPostsByUser);
 
 // 3. Dynamic GET routes (Parameterized)
 router.get('/:id', authMiddleware, getPost);

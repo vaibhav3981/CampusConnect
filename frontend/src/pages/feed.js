@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import api from '../utils/api'
 import Link from 'next/link'
-import { Home, MapPin, LayoutGrid, Bell } from 'lucide-react'
+import { Home, MapPin, LayoutGrid, Bell, Search } from 'lucide-react'
 
 const formatTime = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000)
@@ -295,6 +295,9 @@ export default function Feed() {
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
+          </Link>
+          <Link href="/search" className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
+            <Search size={13} /> Search
           </Link>
         </div>
 

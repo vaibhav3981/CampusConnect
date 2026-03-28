@@ -18,22 +18,26 @@ const formatTime = (date) => {
 
 const Avatar = ({ user: u, size = 9 }) => {
   const roleColor = u?.role === 'professor' ? 'bg-amber-600' : u?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'
+  
+  // Dynamic tailwind classes for size
+  const sizeClass = `w-${size} h-${size}`
+
   if (u?.avatarUrl) {
-    return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0`} />
+    return <img src={u.avatarUrl} alt={u.name} className={`${sizeClass} rounded-full object-cover shrink-0`} />
   }
   return (
-    <div className={`w-${size} h-${size} rounded-full flex items-center justify-center font-bold text-white shrink-0 ${roleColor}`}>
+    <div className={`${sizeClass} rounded-full flex items-center justify-center font-bold text-white shrink-0 ${roleColor} text-[10px]`}>
       {u?.name?.[0]}
     </div>
   )
 }
 
-const renderWithMentions = (text) => {
+const renderWithMentions = (text, onMentionClick) => {
   if (!text) return null
   const parts = text.split(/(@\w+)/g)
   return parts.map((part, i) =>
     part.startsWith('@')
-      ? <span key={i} className="text-blue-400 font-medium">{part}</span>
+      ? <span key={i} className="text-blue-400 font-medium cursor-pointer hover:underline" onClick={() => onMentionClick?.(part)}>{part}</span>
       : part
   )
 }
@@ -80,6 +84,7 @@ export default function PostPage() {
   const [post, setPost] = useState(null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [newCommentId, setNewCommentId] = useState(null)
@@ -122,7 +127,12 @@ export default function PostPage() {
     try {
       const res = await api.get(`/posts/${id}`)
       setPost(res.data)
-    } catch (err) { console.error(err) } finally { setLoading(false) }
+      setErrorMessage('')
+    } catch (err) {
+      console.error(err)
+      setPost(null)
+      setErrorMessage(err.response?.data?.message || 'Post not found.')
+    } finally { setLoading(false) }
   }
 
   const handleLike = async () => {
@@ -154,6 +164,14 @@ export default function PostPage() {
   }
 
   const isPostOwner = post && (post.authorId?._id === user?.id || post.authorId === user?.id)
+
+  const handleMentionClick = async (mention) => {
+    const handle = mention.slice(1).toLowerCase()
+    try {
+      const res = await api.get(`/auth/users/mention/${handle}`)
+      router.push(`/profile/${res.data._id}`)
+    } catch {}
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-gray-200">
@@ -203,7 +221,7 @@ export default function PostPage() {
 
         {!loading && !post && (
           <div className="text-center py-20">
-            <p className="text-gray-500 text-sm">Post not found.</p>
+            <p className="text-gray-500 text-sm">{errorMessage || 'Post not found.'}</p>
             <Link href="/feed" className="text-blue-400 text-xs mt-2 inline-block">← Back to feed</Link>
           </div>
         )}
@@ -224,7 +242,7 @@ export default function PostPage() {
               </div>
 
               {post.textContent && (
-                <p className="text-sm text-gray-200 leading-relaxed mb-4 whitespace-pre-wrap">{renderWithMentions(post.textContent)}</p>
+                <p className="text-sm text-gray-200 leading-relaxed mb-4 whitespace-pre-wrap">{renderWithMentions(post.textContent, handleMentionClick)}</p>
               )}
 
               {post.mediaUrl && (
@@ -268,8 +286,9 @@ export default function PostPage() {
               {post.comments?.length > 0 && (
                 <div className="space-y-3 mb-5">
                   {post.comments.map((c) => (
-                    <div key={c._id} ref={el => commentRefs.current[c._id] = el} className="flex gap-2 group rounded-xl p-1.5 transition-all">
-                      <Avatar user={{ name: c.authorName, role: c.authorRole, avatarUrl: c.authorAvatarUrl }} size={7} />
+                    <div key={c._id} ref={el => commentRefs.current[c._id] = el} className="flex gap-3 group rounded-xl p-1.5 transition-all">
+                      {/* Fixed: Wrapped comment avatar in the circular Avatar component */}
+                      <Avatar user={{ name: c.authorName, role: c.authorRole, avatarUrl: c.authorAvatarUrl }} size={8} />
                       <div className="bg-white/5 p-2.5 rounded-xl flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-[10px] font-bold text-gray-300">{c.authorName}</p>
@@ -280,7 +299,7 @@ export default function PostPage() {
                             )}
                           </div>
                         </div>
-                        <p className="text-xs text-gray-300">{renderWithMentions(c.textContent)}</p>
+                        <p className="text-xs text-gray-300">{renderWithMentions(c.textContent, handleMentionClick)}</p>
                       </div>
                     </div>
                   ))}

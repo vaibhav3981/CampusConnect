@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { Home, MapPin, LayoutGrid, Bell, Heart, MessageCircle, AtSign, Megaphone, Check } from 'lucide-react'
+import { Home, MapPin, LayoutGrid, Bell, Heart, MessageCircle, AtSign, Megaphone, Check, UserPlus } from 'lucide-react'
 import api from '../utils/api'
 
 const formatTime = (date) => {
@@ -18,9 +18,7 @@ const formatTime = (date) => {
 
 const Avatar = ({ user: u, size = 5 }) => {
   const roleColor = u?.role === 'professor' ? 'bg-amber-600' : u?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'
-  if (u?.avatarUrl) {
-    return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0`} />
-  }
+  if (u?.avatarUrl) return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0`} />
   return (
     <div className={`w-${size} h-${size} rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${roleColor}`}>
       {u?.name?.[0]}
@@ -29,10 +27,12 @@ const Avatar = ({ user: u, size = 5 }) => {
 }
 
 const typeConfig = {
-  like:         { icon: Heart,         color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20'    },
-  comment:      { icon: MessageCircle, color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   },
-  mention:      { icon: AtSign,        color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-  announcement: { icon: Megaphone,     color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20'  },
+  like:               { icon: Heart,         color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20'    },
+  comment:            { icon: MessageCircle, color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   },
+  mention:            { icon: AtSign,        color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+  announcement:       { icon: Megaphone,     color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20'  },
+  connection_request: { icon: UserPlus,      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20'  },
+  follow_request:     { icon: UserPlus,      color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   },
 }
 
 export default function Notifications() {
@@ -40,6 +40,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
+  const [actionLoading, setActionLoading] = useState({}) // { [notifId]: 'accept' | 'decline' | null }
 
   useEffect(() => {
     if (!localStorage.getItem('token')) { router.push('/login'); return }
@@ -53,14 +54,14 @@ export default function Notifications() {
     try {
       const res = await api.get('/notifications')
       setNotifications(res.data)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
   const handleClick = async (n) => {
+    // Don't navigate on connection_request — action is inline
+    if (n.type === 'connection_request') return
+
     if (!n.isRead) {
       try {
         await api.put(`/notifications/${n._id}/read`)
@@ -78,6 +79,38 @@ export default function Notifications() {
     }
   }
 
+  const handleAccept = async (n) => {
+    setActionLoading(prev => ({ ...prev, [n._id]: 'accept' }))
+    try {
+      const senderId = n.senderId?._id || n.senderId
+      if (n.type === 'follow_request') {
+        await api.put(`/auth/users/${senderId}/follow/accept`)
+      } else {
+        await api.put(`/connections/accept/${senderId}`)
+      }
+      setNotifications(prev => prev.map(notif =>
+        notif._id === n._id ? { ...notif, isRead: true, _resolved: 'accepted' } : notif
+      ))
+    } catch (err) { alert(err.response?.data?.message || 'Failed to accept') }
+    finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
+  }
+
+  const handleDecline = async (n) => {
+    setActionLoading(prev => ({ ...prev, [n._id]: 'decline' }))
+    try {
+      const senderId = n.senderId?._id || n.senderId
+      if (n.type === 'follow_request') {
+        await api.delete(`/auth/users/${senderId}/follow/decline`)
+      } else {
+        await api.delete(`/connections/decline/${senderId}`)
+      }
+      setNotifications(prev => prev.map(notif =>
+        notif._id === n._id ? { ...notif, isRead: true, _resolved: 'declined' } : notif
+      ))
+    } catch (err) { alert(err.response?.data?.message || 'Failed to decline') }
+    finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
+  }
+
   const markAllRead = async () => {
     try {
       await api.put('/notifications/read')
@@ -89,8 +122,6 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-gray-200">
-
-      {/* Navbar */}
       <nav className="sticky top-0 z-50 bg-[#0a0a0b]/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex items-center justify-between">
         <Link href="/feed" className="text-sm font-black text-white uppercase tracking-tighter">CampusConnect</Link>
         <div className="hidden md:flex items-center gap-1">
@@ -114,28 +145,20 @@ export default function Notifications() {
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-lg font-bold text-white">Notifications</h1>
             {unreadCount > 0 && (
-              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-0.5">
-                {unreadCount} unread
-              </p>
+              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-0.5">{unreadCount} unread</p>
             )}
           </div>
           {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 hover:text-white transition uppercase tracking-widest"
-            >
+            <button onClick={markAllRead} className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 hover:text-white transition uppercase tracking-widest">
               <Check size={11} /> Mark all read
             </button>
           )}
         </div>
 
-        {/* Loading skeleton */}
         {loading && (
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
@@ -152,7 +175,6 @@ export default function Notifications() {
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && notifications.length === 0 && (
           <div className="text-center py-20">
             <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
@@ -163,23 +185,24 @@ export default function Notifications() {
           </div>
         )}
 
-        {/* Notifications list */}
         {!loading && notifications.length > 0 && (
           <div className="space-y-2">
             {notifications.map(n => {
               const cfg = typeConfig[n.type] || typeConfig.comment
               const Icon = cfg.icon
+              const isConnectionRequest = n.type === 'connection_request' || n.type === 'follow_request'
+              const resolved = n._resolved
+              const busy = actionLoading[n._id]
+
               return (
                 <div
                   key={n._id}
                   onClick={() => handleClick(n)}
-                  className={`bg-[#111113] border rounded-2xl p-4 transition cursor-pointer hover:bg-white/[0.03] ${
-                    !n.isRead ? 'border-blue-500/20' : 'border-white/5'
-                  }`}
+                  className={`bg-[#111113] border rounded-2xl p-4 transition ${
+                    isConnectionRequest ? 'cursor-default' : 'cursor-pointer hover:bg-white/[0.03]'
+                  } ${!n.isRead ? 'border-blue-500/20' : 'border-white/5'}`}
                 >
                   <div className="flex items-start gap-3">
-
-                    {/* Type icon */}
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} border ${cfg.border}`}>
                       <Icon size={15} className={cfg.color} />
                     </div>
@@ -205,10 +228,45 @@ export default function Notifications() {
                         </p>
                       )}
 
-                      <div className="flex items-center gap-2 mt-1 pl-7">
-                        <p className="text-[10px] text-gray-700">{formatTime(n.createdAt)}</p>
-                        <span className="text-[9px] text-gray-700">· tap to view post</span>
-                      </div>
+                      {/* ── Connection request actions ── */}
+                      {isConnectionRequest && !resolved && (
+                        <div className="flex items-center gap-2 mt-3 pl-7">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAccept(n) }}
+                            disabled={!!busy}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-wide hover:bg-gray-200 transition disabled:opacity-40"
+                          >
+                            <Check size={10} /> {busy === 'accept' ? 'Accepting…' : 'Accept'}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDecline(n) }}
+                            disabled={!!busy}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-white/10 text-gray-300 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-wide hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition disabled:opacity-40"
+                          >
+                            {busy === 'decline' ? 'Declining…' : 'Decline'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Resolved state */}
+                      {isConnectionRequest && resolved && (
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mt-2 pl-7 ${
+                          resolved === 'accepted' ? 'text-green-500' : 'text-gray-600'
+                        }`}>
+                          {resolved === 'accepted' ? '✓ Request accepted' : 'Request declined'}
+                        </p>
+                      )}
+
+                      {!isConnectionRequest && (
+                        <div className="flex items-center gap-2 mt-1 pl-7">
+                          <p className="text-[10px] text-gray-700">{formatTime(n.createdAt)}</p>
+                          <span className="text-[9px] text-gray-700">· tap to view post</span>
+                        </div>
+                      )}
+
+                      {isConnectionRequest && !resolved && (
+                        <p className="text-[10px] text-gray-700 mt-1 pl-7">{formatTime(n.createdAt)}</p>
+                      )}
                     </div>
                   </div>
                 </div>

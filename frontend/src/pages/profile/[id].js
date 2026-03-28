@@ -11,6 +11,10 @@ export default function UserProfile() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(null)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [hasRequested, setHasRequested] = useState(false)
+  const [followersCount, setFollowersCount] = useState(0)
+  const [followLoading, setFollowLoading] = useState(false)
 
   useEffect(() => {
     if (!localStorage.getItem('token')) { router.push('/login'); return }
@@ -26,16 +30,42 @@ export default function UserProfile() {
   const fetchUserProfile = async () => {
     setLoading(true)
     try {
-      const [userRes, postsRes] = await Promise.all([
-        api.get(`/auth/users/${id}`),
-        api.get('/posts'),
-      ])
+      const userRes = await api.get(`/auth/users/${id}`)
       setProfileUser(userRes.data)
-      setPosts(postsRes.data.filter(p => p.authorId?._id === id))
+      setIsFollowing(userRes.data.isFollowing)
+      setHasRequested(userRes.data.hasRequested ?? false)
+      setFollowersCount(userRes.data.followersCount ?? 0)
+      if (userRes.data.canViewPosts) {
+        const postsRes = await api.get(`/posts/user/${id}`)
+        setPosts(postsRes.data)
+      } else {
+        setPosts([])
+      }
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFollow = async () => {
+    setFollowLoading(true)
+    try {
+      const res = await api.put(`/auth/users/${id}/follow`)
+      setIsFollowing(res.data.following)
+      setHasRequested(res.data.requested ?? false)
+      setFollowersCount(res.data.followersCount)
+      setProfileUser(prev => prev ? { ...prev, canViewPosts: res.data.canViewPosts } : prev)
+      if (res.data.canViewPosts) {
+        const postsRes = await api.get(`/posts/user/${id}`)
+        setPosts(postsRes.data)
+      } else {
+        setPosts([])
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFollowLoading(false)
     }
   }
 
@@ -77,15 +107,41 @@ export default function UserProfile() {
         {/* Profile Header */}
         <div className="bg-[#111] rounded-3xl p-8 border border-white/5 shadow-2xl mb-12">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black shadow-2xl shrink-0 ${roleColor} ring-4 ring-black`}>
-              {profileUser.name?.[0]}
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black shadow-2xl shrink-0 ${roleColor} ring-4 ring-black overflow-hidden`}>
+              {profileUser.avatarUrl
+                ? <img src={profileUser.avatarUrl} alt={profileUser.name} className="w-full h-full object-cover" />
+                : profileUser.name?.[0]
+              }
             </div>
 
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-3xl font-extrabold tracking-tight">{profileUser.name}</h1>
-              <div className={`mt-3 inline-block px-3 py-1 rounded-lg border text-[10px] font-black uppercase tracking-tighter ${roleBadge}`}>
-                {profileUser.role}
+              <div className="flex items-center gap-3 mt-3 justify-center sm:justify-start flex-wrap">
+                <div className={`inline-block px-3 py-1 rounded-lg border text-[10px] font-black uppercase tracking-tighter ${roleBadge}`}>
+                  {profileUser.role}
+                </div>
+                <span className="text-[10px] px-3 py-1 rounded-lg border border-white/10 bg-white/5 font-black uppercase tracking-tighter text-gray-300">
+                  {profileUser.isPrivate ? 'Private Account' : 'Public Account'}
+                </span>
+                <span className="text-[10px] text-gray-500 font-bold">
+                  {followersCount} {followersCount === 1 ? 'follower' : 'followers'}
+                </span>
               </div>
+              {currentUser && currentUser.id !== id && (
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`mt-4 px-5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest transition disabled:opacity-50 ${
+                    isFollowing
+                      ? 'bg-white/10 text-gray-300 hover:bg-red-500/10 hover:text-red-400 border border-white/10'
+                      : hasRequested
+                      ? 'bg-white/10 text-gray-400 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white'
+                  }`}
+                >
+                  {followLoading ? '...' : isFollowing ? 'Unfollow' : hasRequested ? 'Requested' : 'Follow'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -106,6 +162,12 @@ export default function UserProfile() {
                     <h3 className={labelClass}>Current Year</h3>
                     <p className="text-sm font-bold text-white">{profileUser.year ? `Year ${profileUser.year}` : 'Not set'}</p>
                   </div>
+                  {profileUser.matricola && (
+                    <div>
+                      <h3 className={labelClass}>Matricola</h3>
+                      <p className="text-sm font-bold font-mono text-white">#{profileUser.matricola}</p>
+                    </div>
+                  )}
                 </>
               )}
               {profileUser.role === 'professor' && (
@@ -139,10 +201,12 @@ export default function UserProfile() {
           </div>
 
           {posts.length === 0 && (
-            <p className="text-center text-[11px] text-gray-700 italic py-8">No posts yet.</p>
+            <p className="text-center text-[11px] text-gray-700 italic py-8">
+              {profileUser.canViewPosts ? 'No posts yet.' : 'This account is private. Follow them to see their posts.'}
+            </p>
           )}
 
-          {posts.map((post) => (
+          {profileUser.canViewPosts && posts.map((post) => (
             <div key={post._id} onClick={() => router.push(`/post/${post._id}`)} className="bg-[#111] hover:bg-[#151515] rounded-3xl p-6 border border-white/5 transition-all cursor-pointer">
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-medium text-gray-600 uppercase tracking-widest">
@@ -152,7 +216,15 @@ export default function UserProfile() {
                   <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold uppercase">Announcement</span>
                 )}
               </div>
-              <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{post.textContent}</p>
+              <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap mb-4">{post.textContent}</p>
+              {post.mediaUrl && (
+                <div className="mb-4 rounded-2xl overflow-hidden border border-white/5 bg-black/20">
+                  {post.mediaType === 'video'
+                    ? <video src={post.mediaUrl} className="w-full max-h-[400px] object-contain" controls />
+                    : <img src={post.mediaUrl} className="w-full max-h-[400px] object-contain" alt="" />
+                  }
+                </div>
+              )}
               {post.hashtags?.length > 0 && (
                 <div className="flex flex-wrap gap-3 mt-4">
                   {post.hashtags.map((tag) => (

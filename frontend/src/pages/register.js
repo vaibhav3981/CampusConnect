@@ -18,6 +18,7 @@ export default function Register() {
     department: '',
     graduationYear: '',
     degree: '',
+    matricola: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,6 +50,16 @@ export default function Register() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // Validate matricola for students
+    if (form.role === 'student' && form.matricola) {
+      if (!/^\d{6}$/.test(form.matricola)) {
+        setError('Matricola must be exactly 6 digits')
+        setLoading(false)
+        return
+      }
+    }
+
     try {
       const res = await api.post('/auth/register', {
         name: form.name,
@@ -60,6 +71,7 @@ export default function Register() {
         department: form.department || null,
         graduationYear: form.graduationYear ? Number(form.graduationYear) : null,
         degree: form.degree || null,
+        matricola: form.role === 'student' ? (form.matricola || null) : null,
       })
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
@@ -99,7 +111,6 @@ export default function Register() {
       { value: '7', label: '1st year Fuori Corso' },
       { value: '8', label: '2nd year Fuori Corso' },
     ]
-    // Bachelors — 3 years + fuori corso
     return [
       { value: '1', label: '1st year' },
       { value: '2', label: '2nd year' },
@@ -122,7 +133,6 @@ export default function Register() {
     <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
 
-        {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-sm font-black text-white uppercase tracking-tighter">CampusConnect</h1>
           <p className="text-gray-600 text-xs mt-1 uppercase tracking-widest">University of Messina</p>
@@ -130,7 +140,6 @@ export default function Register() {
 
         <div className="bg-[#111113] border border-white/5 rounded-2xl p-8 shadow-2xl">
 
-          {/* Step header */}
           <div className="mb-6">
             <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">
               Step {step} of 2
@@ -140,7 +149,6 @@ export default function Register() {
             </h2>
           </div>
 
-          {/* Progress bar */}
           <div className="flex gap-1.5 mb-8">
             <div className="h-0.5 flex-1 rounded-full bg-blue-500" />
             <div className={`h-0.5 flex-1 rounded-full transition-all ${step >= 2 ? 'bg-blue-500' : 'bg-white/10'}`} />
@@ -152,7 +160,7 @@ export default function Register() {
             </div>
           )}
 
-          {/* ── STEP 1 ── */}
+          {/* STEP 1 */}
           {step === 1 && (
             <form onSubmit={handleNext} className="space-y-5">
               <div>
@@ -173,7 +181,7 @@ export default function Register() {
             </form>
           )}
 
-          {/* ── STEP 2 ── */}
+          {/* STEP 2 */}
           {step === 2 && (
             <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -185,7 +193,7 @@ export default function Register() {
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setForm({ ...form, role: r, program: '', department: '', year: '', degreeType: '' })}
+                      onClick={() => setForm({ ...form, role: r, program: '', department: '', year: '', degreeType: '', matricola: '' })}
                       className={`py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition ${
                         form.role === r
                           ? 'bg-blue-600 border-blue-500 text-white'
@@ -198,7 +206,7 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* ── STUDENT ── */}
+              {/* STUDENT */}
               {form.role === 'student' && (
                 <>
                   <div>
@@ -235,10 +243,25 @@ export default function Register() {
                       </select>
                     </div>
                   )}
+
+                  <div>
+                    <label className={labelClass}>
+                      Matricola <span className="text-gray-700 normal-case font-normal">(optional — 6-digit student ID)</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="matricola"
+                      value={form.matricola}
+                      onChange={handleChange}
+                      maxLength={6}
+                      className={inputClass}
+                      placeholder="e.g. 234567"
+                    />
+                  </div>
                 </>
               )}
 
-              {/* ── PROFESSOR ── */}
+              {/* PROFESSOR */}
               {form.role === 'professor' && (
                 <div>
                   <label className={labelClass}>Department</label>
@@ -258,7 +281,7 @@ export default function Register() {
                 </div>
               )}
 
-              {/* ── ALUMNI ── */}
+              {/* ALUMNI */}
               {form.role === 'alumni' && (
                 <>
                   <div>

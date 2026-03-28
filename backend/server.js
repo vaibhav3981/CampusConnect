@@ -18,6 +18,10 @@ app.use('/api/posts', require('./routes/posts'));
 app.use('/api/pages', require('./routes/pages')); // Added back as per Claude's reminder
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/notifications', require('./routes/notifications'))
+app.use('/api/follows',     require('./routes/follows'))
+app.use('/api/connections', require('./routes/connections'))
+app.use('/api/timetables', require('./routes/timetables'))
+app.use('/api/appointments', require('./routes/appointments'))
 
 // 4. Start Server
 const PORT = process.env.PORT || 3001;
