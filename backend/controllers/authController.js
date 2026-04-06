@@ -235,7 +235,7 @@ exports.acceptFollowRequest = async (req, res) => {
     const myId = req.user.id
 
     const notif = await Notification.findOne({
-      recipientId: myId, senderId: requesterId, type: 'follow_request', isRead: false,
+      recipientId: myId, senderId: requesterId, type: 'follow_request',
     })
     if (!notif) return res.status(404).json({ message: 'Follow request not found' })
 
