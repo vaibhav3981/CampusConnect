@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { Home, MapPin, LayoutGrid, Bell, ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import api from '../../utils/api'
 
 const formatTime = (date) => {
@@ -178,22 +178,12 @@ export default function PostPage() {
 
       {/* Navbar */}
       <nav className="sticky top-0 z-50 bg-[#0a0a0b]/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex items-center justify-between">
-        <Link href="/feed" className="text-sm font-black text-white uppercase tracking-tighter">CampusConnect</Link>
-        <div className="hidden md:flex items-center gap-1">
-          {[
-            { href: '/feed',          icon: <Home size={13} />,       label: 'Feed' },
-            { href: '/map',           icon: <MapPin size={13} />,     label: 'Find a Place' },
-            { href: '/timetable',     icon: <LayoutGrid size={13} />, label: 'Services' },
-            { href: '/notifications', icon: <Bell size={13} />,       label: 'Notifications' },
-          ].map(({ href, icon, label }) => (
-            <Link key={href} href={href}
-              className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
-              {icon} {label}
-            </Link>
-          ))}
-        </div>
-        <Link href="/profile" className="text-[10px] font-bold uppercase text-gray-500 hover:text-white transition">
-          {user?.name?.split(' ')[0] || 'Profile'}
+        <Link href="/feed" className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex flex-col items-center justify-center shadow-[0_0_14px_rgba(99,102,241,0.4)] shrink-0">
+            <span className="text-[10px] font-black text-white leading-none">U</span>
+            <span className="text-[5.5px] font-black text-indigo-200 tracking-widest leading-none mt-0.5">NM</span>
+          </div>
+          <span className="text-sm font-bold text-white tracking-tight">UniMeConnect</span>
         </Link>
       </nav>
 
