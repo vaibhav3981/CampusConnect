@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Link from 'next/link'
-import { Home, MapPin, LayoutGrid, Bell, Heart, MessageCircle, AtSign, Megaphone, Check, UserPlus } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Bell, Heart, MessageCircle, AtSign, Megaphone, Check, UserPlus, Trash2 } from 'lucide-react'
 import api from '../utils/api'
 
 const formatTime = (date) => {
@@ -16,23 +16,23 @@ const formatTime = (date) => {
   return new Date(date).toLocaleDateString()
 }
 
-const Avatar = ({ user: u, size = 5 }) => {
-  const roleColor = u?.role === 'professor' ? 'bg-amber-600' : u?.role === 'alumni' ? 'bg-green-700' : 'bg-blue-600'
-  if (u?.avatarUrl) return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0`} />
+const Avatar = ({ user: u, size = 10 }) => {
+  const roleColor = u?.role === 'professor' ? 'bg-indigo-600' : u?.role === 'alumni' ? 'bg-emerald-600' : 'bg-blue-600'
+  if (u?.avatarUrl) return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0 shadow-md`} />
   return (
-    <div className={`w-${size} h-${size} rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${roleColor}`}>
+    <div className={`w-${size} h-${size} rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-md ${roleColor}`}>
       {u?.name?.[0]}
     </div>
   )
 }
 
 const typeConfig = {
-  like:               { icon: Heart,         color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20'    },
-  comment:            { icon: MessageCircle, color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   },
-  mention:            { icon: AtSign,        color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-  announcement:       { icon: Megaphone,     color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20'  },
-  connection_request: { icon: UserPlus,      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20'  },
-  follow_request:     { icon: UserPlus,      color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   },
+  like:               { icon: Heart,         color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/30'    },
+  comment:            { icon: MessageCircle, color: 'text-indigo-400',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/30'  },
+  mention:            { icon: AtSign,        color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/30'  },
+  announcement:       { icon: Megaphone,     color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30'   },
+  connection_request: { icon: UserPlus,      color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+  follow_request:     { icon: UserPlus,      color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30'    },
 }
 
 export default function Notifications() {
@@ -40,7 +40,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
-  const [actionLoading, setActionLoading] = useState({}) // { [notifId]: 'accept' | 'decline' | null }
+  const [actionLoading, setActionLoading] = useState({})
 
   useEffect(() => {
     if (!localStorage.getItem('token')) { router.push('/login'); return }
@@ -59,15 +59,12 @@ export default function Notifications() {
   }
 
   const handleClick = async (n) => {
-    // Don't navigate on connection_request — action is inline
     if (n.type === 'connection_request') return
 
     if (!n.isRead) {
       try {
         await api.put(`/notifications/${n._id}/read`)
-        setNotifications(prev => prev.map(notif =>
-          notif._id === n._id ? { ...notif, isRead: true } : notif
-        ))
+        setNotifications(prev => prev.map(notif => notif._id === n._id ? { ...notif, isRead: true } : notif))
       } catch (err) { console.error(err) }
     }
     const postId = n.postId?._id || n.postId
@@ -83,110 +80,68 @@ export default function Notifications() {
     setActionLoading(prev => ({ ...prev, [n._id]: 'accept' }))
     try {
       const senderId = n.senderId?._id || n.senderId
-      if (n.type === 'follow_request') {
-        await api.put(`/auth/users/${senderId}/follow/accept`)
-      } else {
-        await api.put(`/connections/accept/${senderId}`)
-      }
-      setNotifications(prev => prev.map(notif =>
-        notif._id === n._id ? { ...notif, isRead: true, _resolved: 'accepted' } : notif
-      ))
-    } catch (err) { alert(err.response?.data?.message || 'Failed to accept') }
-    finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
+      if (n.type === 'follow_request') await api.put(`/auth/users/${senderId}/follow/accept`)
+      else await api.put(`/connections/accept/${senderId}`)
+      setNotifications(prev => prev.map(notif => notif._id === n._id ? { ...notif, isRead: true, _resolved: 'accepted' } : notif))
+    } catch (err) {} finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
   }
 
   const handleDecline = async (n) => {
     setActionLoading(prev => ({ ...prev, [n._id]: 'decline' }))
     try {
       const senderId = n.senderId?._id || n.senderId
-      if (n.type === 'follow_request') {
-        await api.delete(`/auth/users/${senderId}/follow/decline`)
-      } else {
-        await api.delete(`/connections/decline/${senderId}`)
-      }
-      setNotifications(prev => prev.map(notif =>
-        notif._id === n._id ? { ...notif, isRead: true, _resolved: 'declined' } : notif
-      ))
-    } catch (err) { alert(err.response?.data?.message || 'Failed to decline') }
-    finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
+      if (n.type === 'follow_request') await api.delete(`/auth/users/${senderId}/follow/decline`)
+      else await api.delete(`/connections/decline/${senderId}`)
+      setNotifications(prev => prev.map(notif => notif._id === n._id ? { ...notif, isRead: true, _resolved: 'declined' } : notif))
+    } catch (err) {} finally { setActionLoading(prev => ({ ...prev, [n._id]: null })) }
   }
 
   const markAllRead = async () => {
     try {
       await api.put('/notifications/read')
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
-    } catch (err) { console.error(err) }
+    } catch (err) {}
   }
 
   const unreadCount = notifications.filter(n => !n.isRead).length
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-gray-200">
-      <nav className="sticky top-0 z-50 bg-[#0a0a0b]/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex items-center justify-between">
-        <Link href="/feed" className="text-sm font-black text-white uppercase tracking-tighter">CampusConnect</Link>
-        <div className="hidden md:flex items-center gap-1">
-          {[
-            { href: '/feed',          icon: <Home size={13} />,       label: 'Feed' },
-            { href: '/map',           icon: <MapPin size={13} />,     label: 'Find a Place' },
-            { href: '/timetable',     icon: <LayoutGrid size={13} />, label: 'Services' },
-            { href: '/notifications', icon: <Bell size={13} />,       label: 'Notifications', active: true },
-          ].map(({ href, icon, label, active }) => (
-            <Link key={href} href={href}
-              className={`flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-widest transition ${
-                active ? 'text-white bg-white/5' : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}>
-              {icon} {label}
-            </Link>
+    <div className="max-w-3xl mx-auto">
+      <header className="mb-8 flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Alerts</h1>
+          <p className="text-zinc-400 font-medium">Updates and activity on your profile.</p>
+        </div>
+        {unreadCount > 0 && (
+          <button onClick={markAllRead} className="flex items-center gap-2 text-xs font-semibold text-zinc-400 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl transition-colors">
+            <Check size={14} /> Mark all read ({unreadCount})
+          </button>
+        )}
+      </header>
+
+      {loading ? (
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="glass border border-white/5 rounded-3xl p-6 flex gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-800 animate-pulse shrink-0" />
+              <div className="flex-1 space-y-3 py-1">
+                <div className="h-4 bg-zinc-800 rounded animate-pulse w-3/4" />
+                <div className="h-3 bg-zinc-800 rounded animate-pulse w-1/2" />
+              </div>
+            </div>
           ))}
         </div>
-        <Link href="/profile" className="text-[10px] font-bold uppercase text-gray-500 hover:text-white transition">
-          {user?.name?.split(' ')[0] || 'Profile'}
-        </Link>
-      </nav>
-
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-lg font-bold text-white">Notifications</h1>
-            {unreadCount > 0 && (
-              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-0.5">{unreadCount} unread</p>
-            )}
+      ) : notifications.length === 0 ? (
+        <div className="glass rounded-3xl p-12 text-center border-dashed border-2 border-white/10">
+          <div className="w-20 h-20 rounded-full bg-zinc-900 mx-auto flex items-center justify-center mb-6 shadow-inner">
+            <Bell size={32} className="text-zinc-600" />
           </div>
-          {unreadCount > 0 && (
-            <button onClick={markAllRead} className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 hover:text-white transition uppercase tracking-widest">
-              <Check size={11} /> Mark all read
-            </button>
-          )}
+          <h2 className="text-xl font-bold text-white mb-2">You&apos;re all caught up!</h2>
+          <p className="text-zinc-500">When someone interacts with you or your posts, you&apos;ll see it here.</p>
         </div>
-
-        {loading && (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-[#111113] border border-white/5 rounded-2xl p-4 animate-pulse">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white/5 shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-white/5 rounded w-2/3" />
-                    <div className="h-2 bg-white/5 rounded w-1/3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && notifications.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-              <Bell size={24} className="text-gray-600" />
-            </div>
-            <p className="text-sm font-bold text-gray-500">No notifications yet</p>
-            <p className="text-[11px] text-gray-700 mt-1">When someone likes or comments on your posts, you'll see it here.</p>
-          </div>
-        )}
-
-        {!loading && notifications.length > 0 && (
-          <div className="space-y-2">
+      ) : (
+        <div className="space-y-4">
+          <AnimatePresence>
             {notifications.map(n => {
               const cfg = typeConfig[n.type] || typeConfig.comment
               const Icon = cfg.icon
@@ -195,86 +150,78 @@ export default function Notifications() {
               const busy = actionLoading[n._id]
 
               return (
-                <div
+                <motion.div
                   key={n._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
                   onClick={() => handleClick(n)}
-                  className={`bg-[#111113] border rounded-2xl p-4 transition ${
-                    isConnectionRequest ? 'cursor-default' : 'cursor-pointer hover:bg-white/[0.03]'
-                  } ${!n.isRead ? 'border-blue-500/20' : 'border-white/5'}`}
+                  className={`glass border rounded-3xl p-5 transition-all overflow-hidden relative ${
+                    isConnectionRequest ? 'cursor-default' : 'cursor-pointer hover:bg-white/[0.04]'
+                  } ${!n.isRead ? 'border-indigo-500/30 bg-indigo-950/20 shadow-[0_0_20px_rgba(79,70,229,0.05)]' : 'border-white/5'}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} border ${cfg.border}`}>
-                      <Icon size={15} className={cfg.color} />
+                  {!n.isRead && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />}
+
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <Avatar user={n.senderId} />
+                      <div className={`absolute -bottom-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center ${cfg.bg} border-2 border-[#18181b] shadow-sm`}>
+                        <Icon size={12} className={cfg.color} />
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                          <Avatar user={n.senderId} size={5} />
-                          <p className="text-xs text-gray-200 min-w-0">
-                            <span className="font-bold">{n.senderId?.name}</span>
-                            {' '}
-                            <span className="text-gray-400">{n.message}</span>
-                          </p>
-                        </div>
-                        {!n.isRead && (
-                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />
-                        )}
-                      </div>
+                    <div className="flex-1 min-w-0 pt-1">
+                      <p className="text-sm text-zinc-300 leading-snug">
+                        <span className="font-bold text-white mr-1.5">{n.senderId?.name}</span>
+                        {n.message}
+                      </p>
 
                       {n.postId?.textContent && (
-                        <p className="text-[11px] text-gray-600 mt-1.5 truncate pl-7">
-                          "{n.postId.textContent.slice(0, 80)}{n.postId.textContent.length > 80 ? '...' : ''}"
-                        </p>
+                        <div className="mt-3 bg-black/40 border border-white/5 rounded-2xl p-3">
+                          <p className="text-xs text-zinc-400 italic line-clamp-2">&quot;{n.postId.textContent}&quot;</p>
+                        </div>
                       )}
 
-                      {/* ── Connection request actions ── */}
+                      {/* Connection request actions */}
                       {isConnectionRequest && !resolved && (
-                        <div className="flex items-center gap-2 mt-3 pl-7">
+                        <div className="flex items-center gap-3 mt-4">
                           <button
                             onClick={(e) => { e.stopPropagation(); handleAccept(n) }}
                             disabled={!!busy}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-wide hover:bg-gray-200 transition disabled:opacity-40"
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
                           >
-                            <Check size={10} /> {busy === 'accept' ? 'Accepting…' : 'Accept'}
+                            <Check size={14} /> {busy === 'accept' ? 'Accepting...' : 'Accept'}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDecline(n) }}
                             disabled={!!busy}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-white/10 text-gray-300 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-wide hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition disabled:opacity-40"
+                            className="bg-zinc-800 hover:bg-red-500/20 text-zinc-300 hover:text-red-400 border border-transparent hover:border-red-500/30 px-5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
                           >
-                            {busy === 'decline' ? 'Declining…' : 'Decline'}
+                            <Trash2 size={14} /> {busy === 'decline' ? 'Declining...' : 'Decline'}
                           </button>
                         </div>
                       )}
 
                       {/* Resolved state */}
                       {isConnectionRequest && resolved && (
-                        <p className={`text-[10px] font-bold uppercase tracking-widest mt-2 pl-7 ${
-                          resolved === 'accepted' ? 'text-green-500' : 'text-gray-600'
+                        <div className={`mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          resolved === 'accepted' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
                         }`}>
-                          {resolved === 'accepted' ? '✓ Request accepted' : 'Request declined'}
-                        </p>
-                      )}
-
-                      {!isConnectionRequest && (
-                        <div className="flex items-center gap-2 mt-1 pl-7">
-                          <p className="text-[10px] text-gray-700">{formatTime(n.createdAt)}</p>
-                          <span className="text-[9px] text-gray-700">· tap to view post</span>
+                          {resolved === 'accepted' ? <Check size={12}/> : <Trash2 size={12}/>}
+                          {resolved === 'accepted' ? 'Request Accepted' : 'Request Declined'}
                         </div>
                       )}
 
-                      {isConnectionRequest && !resolved && (
-                        <p className="text-[10px] text-gray-700 mt-1 pl-7">{formatTime(n.createdAt)}</p>
-                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                         <span className="text-xs text-zinc-600 font-medium">{formatTime(n.createdAt)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )
             })}
-          </div>
-        )}
-      </div>
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   )
 }
