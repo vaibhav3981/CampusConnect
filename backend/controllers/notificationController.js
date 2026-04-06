@@ -4,7 +4,10 @@ const User = require('../models/User')
 // Get all notifications for logged-in user
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipientId: req.user.id })
+    const notifications = await Notification.find({
+      recipientId: req.user.id,
+      $nor: [{ type: { $in: ['connection_request', 'follow_request'] }, isRead: true }],
+    })
       .sort({ createdAt: -1 })
       .limit(50)
       .populate('senderId', 'name role avatarUrl')
