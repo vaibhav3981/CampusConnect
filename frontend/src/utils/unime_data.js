@@ -1,5 +1,5 @@
 // ============================================================
-// UNIVERSITY OF MESSINA — CAMPUSCONNECT MASTER DATA FILE
+// UNIVERSITY OF MESSINA — UNIMECONNECT MASTER DATA FILE
 // Combined from UniMe International website + scraped sources
 // Last updated: March 2026
 // ============================================================
