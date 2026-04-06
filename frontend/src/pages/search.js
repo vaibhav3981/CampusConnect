@@ -1,13 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
-import Link from 'next/link'
-import { Home, MapPin, LayoutGrid, Bell, Search, UserPlus, UserCheck, Users, GraduationCap, BookOpen } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Search, UserPlus, UserCheck, Users, GraduationCap, BookOpen, ChevronRight } from 'lucide-react'
 import api from '../utils/api'
 
-const Avatar = ({ user: u, size = 9 }) => {
-  const roleColor = u?.role === 'professor' ? 'bg-amber-600' : 'bg-blue-600'
-  if (u?.avatarUrl) return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-full object-cover shrink-0`} />
-  return <div className={`w-${size} h-${size} rounded-full flex items-center justify-center font-bold text-white shrink-0 text-sm ${roleColor}`}>{u?.name?.[0]}</div>
+const Avatar = ({ user: u, size = 12 }) => {
+  const roleColor = u?.role === 'professor' ? 'bg-amber-600' : 'bg-indigo-600'
+  if (u?.avatarUrl) return <img src={u.avatarUrl} alt={u.name} className={`w-${size} h-${size} rounded-2xl object-cover shrink-0 shadow-md`} />
+  return <div className={`w-${size} h-${size} rounded-2xl flex items-center justify-center font-bold text-white shrink-0 shadow-md ${roleColor}`}>{u?.name?.[0]}</div>
 }
 
 export default function SearchPage() {
@@ -16,7 +16,7 @@ export default function SearchPage() {
   const debounceRef = useRef(null)
 
   const [user, setUser] = useState(null)
-  const [mode, setMode] = useState('student') // 'student' | 'professor'
+  const [mode, setMode] = useState('student') 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -30,10 +30,8 @@ export default function SearchPage() {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [])
 
-  // Re-search when mode changes if there's already a query
   useEffect(() => {
-    setResults([])
-    setConnectionStatuses({})
+    setResults([]); setConnectionStatuses({})
     if (query.trim()) doSearch(query)
   }, [mode])
 
@@ -46,18 +44,11 @@ export default function SearchPage() {
   const doSearch = async (q) => {
     setLoading(true)
     try {
-      // Search by name + filter by role on backend via separate param
-      const isMatricola = /^\d{4,6}$/.test(q.trim())
       const res = await api.get(`/auth/users/search?q=${encodeURIComponent(q)}`)
-      // Filter client-side by mode
-      const filtered = res.data.filter(u =>
-        mode === 'student' ? u.role === 'student' : u.role === 'professor'
-      )
+      const filtered = res.data.filter(u => mode === 'student' ? u.role === 'student' : u.role === 'professor')
       setResults(filtered)
-      // Fetch relationship status for each
       filtered.forEach(u => fetchStatus(u))
-    } catch { setResults([]) }
-    finally { setLoading(false) }
+    } catch {} finally { setLoading(false) }
   }
 
   const fetchStatus = async (targetUser) => {
@@ -77,14 +68,11 @@ export default function SearchPage() {
     try {
       const isFollowing = connectionStatuses[targetUser._id] === 'following'
       if (isFollowing) {
-        await api.delete(`/follows/${targetUser._id}`)
-        setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'none' }))
+         await api.delete(`/follows/${targetUser._id}`); setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'none' }))
       } else {
-        await api.post(`/follows/${targetUser._id}`)
-        setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'following' }))
+         await api.post(`/follows/${targetUser._id}`); setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'following' }))
       }
-    } catch (err) { alert(err.response?.data?.message || 'Action failed') }
-    finally { setActionLoading(prev => ({ ...prev, [targetUser._id]: false })) }
+    } catch (err) {} finally { setActionLoading(prev => ({ ...prev, [targetUser._id]: false })) }
   }
 
   const handleConnect = async (targetUser) => {
@@ -92,21 +80,18 @@ export default function SearchPage() {
     try {
       const status = connectionStatuses[targetUser._id]
       if (status === 'none' || !status) {
-        await api.post(`/connections/request/${targetUser._id}`)
-        setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'pending_sent' }))
+        await api.post(`/connections/request/${targetUser._id}`); setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'pending_sent' }))
       } else if (status === 'pending_received') {
-        await api.put(`/connections/accept/${targetUser._id}`)
-        setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'connected' }))
+        await api.put(`/connections/accept/${targetUser._id}`); setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'connected' }))
       } else if (status === 'connected') {
-        await api.delete(`/connections/remove/${targetUser._id}`)
-        setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'none' }))
+        await api.delete(`/connections/remove/${targetUser._id}`); setConnectionStatuses(prev => ({ ...prev, [targetUser._id]: 'none' }))
       }
-    } catch (err) { alert(err.response?.data?.message || 'Action failed') }
-    finally { setActionLoading(prev => ({ ...prev, [targetUser._id]: false })) }
+    } catch (err) {} finally { setActionLoading(prev => ({ ...prev, [targetUser._id]: false })) }
   }
 
   const renderActionButton = (targetUser) => {
-    if (targetUser._id === user?.id) return <span className="text-[9px] text-gray-600 uppercase tracking-widest">You</span>
+    if (targetUser._id === user?.id) return <span className="text-xs font-semibold text-zinc-500 bg-zinc-900 px-3 py-1.5 rounded-lg border border-white/5">You</span>
+    
     const status = connectionStatuses[targetUser._id]
     const busy = actionLoading[targetUser._id]
 
@@ -114,184 +99,112 @@ export default function SearchPage() {
       const isFollowing = status === 'following'
       return (
         <button onClick={(e) => { e.stopPropagation(); handleFollow(targetUser) }} disabled={busy}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition disabled:opacity-50 ${
-            isFollowing ? 'bg-white/10 text-gray-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400' : 'bg-white text-black hover:bg-gray-200'
+          className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 w-32 ${
+            isFollowing ? 'bg-zinc-800 text-zinc-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20' : 'bg-indigo-600 text-white hover:bg-indigo-500'
           }`}>
-          {isFollowing ? <><UserCheck size={10} /> Following</> : <><UserPlus size={10} /> Follow</>}
+          {isFollowing ? <><UserCheck size={14} /> Following</> : <><UserPlus size={14} /> Follow</>}
         </button>
       )
     }
 
     const config = {
-      none:             { label: 'Add Friend',  icon: <UserPlus size={10} />,  style: 'bg-white text-black hover:bg-gray-200' },
-      pending_sent:     { label: 'Requested',   icon: <UserCheck size={10} />, style: 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed' },
-      pending_received: { label: 'Accept',      icon: <UserCheck size={10} />, style: 'bg-blue-600 text-white hover:bg-blue-500' },
-      connected:        { label: 'Connected',   icon: <Users size={10} />,     style: 'bg-white/10 text-gray-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400' },
+      none:             { label: 'Connect',     icon: <UserPlus size={14} />,  style: 'bg-indigo-600 text-white hover:bg-indigo-500' },
+      pending_sent:     { label: 'Requested',   icon: <UserCheck size={14} />, style: 'bg-zinc-800 text-zinc-500 border border-white/5 cursor-not-allowed' },
+      pending_received: { label: 'Accept',      icon: <UserCheck size={14} />, style: 'bg-emerald-600 text-white hover:bg-emerald-500' },
+      connected:        { label: 'Connected',   icon: <Users size={14} />,     style: 'bg-zinc-800 text-zinc-300 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20' },
     }
     const c = config[status || 'none']
     return (
-      <button onClick={(e) => { e.stopPropagation(); handleConnect(targetUser) }}
-        disabled={busy || status === 'pending_sent'}
-        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition disabled:opacity-50 ${c.style}`}>
+      <button onClick={(e) => { e.stopPropagation(); handleConnect(targetUser) }} disabled={busy || status === 'pending_sent'}
+        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 w-32 ${c.style}`}>
         {c.icon} {c.label}
       </button>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-gray-200">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-[#0a0a0b]/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex items-center justify-between">
-        <Link href="/feed" className="text-sm font-black text-white uppercase tracking-tighter">CampusConnect</Link>
-        <div className="hidden md:flex items-center gap-1">
-          {[
-            { href: '/feed',          icon: <Home size={13} />,       label: 'Feed' },
-            { href: '/map',           icon: <MapPin size={13} />,     label: 'Find a Place' },
-            { href: '/timetable',     icon: <LayoutGrid size={13} />, label: 'Services' },
-            { href: '/notifications', icon: <Bell size={13} />,       label: 'Notifications' },
-          ].map(({ href, icon, label }) => (
-            <Link key={href} href={href}
-              className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition uppercase tracking-widest">
-              {icon} {label}
-            </Link>
-          ))}
-        </div>
-        <Link href="/profile" className="text-[10px] font-bold uppercase text-gray-500 hover:text-white transition">
-          {user?.name?.split(' ')[0] || 'Profile'}
-        </Link>
-      </nav>
-
-      <div className="max-w-3xl mx-auto px-4 py-10">
-
-        {/* Search box — top centre */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-black text-white mb-6">Find People</h1>
-          <div className="relative max-w-lg mx-auto">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+    <div className="max-w-4xl mx-auto flex flex-col items-center">
+      <div className="w-full text-center space-y-6 pt-10 pb-12">
+        <h1 className="text-4xl font-black text-white tracking-tight">Directory Search</h1>
+        
+        <div className="relative max-w-2xl mx-auto w-full group">
+          <div className="absolute inset-x-0 -bottom-2 h-10 bg-indigo-500/20 blur-xl rounded-full transition-opacity opacity-0 group-focus-within:opacity-100" />
+          <div className="relative flex items-center bg-zinc-900/80 border border-white/10 rounded-3xl p-2 shadow-2xl backdrop-blur-md transition-all group-focus-within:border-indigo-500/50 group-focus-within:bg-zinc-900">
+            <div className="pl-4 pr-3">
+              <Search size={22} className="text-zinc-500 group-focus-within:text-indigo-400 transition-colors" />
+            </div>
             <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder={mode === 'student' ? 'Search student name or matricola…' : 'Search professor name…'}
-              className="w-full bg-[#111113] border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/40 placeholder-gray-600 transition"
+              ref={inputRef} type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder={mode === 'student' ? 'Search students by name or matricola...' : 'Search professors...'}
+              className="w-full bg-transparent border-none text-[15px] font-medium text-white focus:ring-0 placeholder-zinc-600 focus:outline-none py-3"
             />
-            {loading && (
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            )}
+            {loading && <div className="pr-4"><div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>}
           </div>
         </div>
 
-        {/* Mode toggle — 2 options below search */}
-        <div className="flex gap-3 justify-center mb-8">
+        <div className="flex justify-center gap-3 mt-4">
           <button onClick={() => { setMode('student'); setQuery(''); setResults([]) }}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest border transition ${
-              mode === 'student'
-                ? 'bg-blue-600 border-blue-500 text-white'
-                : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+              mode === 'student' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
             }`}>
-            <GraduationCap size={14} /> Search Students
+            <GraduationCap size={16} /> Students
           </button>
           <button onClick={() => { setMode('professor'); setQuery(''); setResults([]) }}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest border transition ${
-              mode === 'professor'
-                ? 'bg-amber-600 border-amber-500 text-white'
-                : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+              mode === 'professor' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
             }`}>
-            <BookOpen size={14} /> Search Professors
+            <BookOpen size={16} /> Professors
           </button>
         </div>
+      </div>
 
-        {/* Empty state */}
+      <div className="w-full max-w-3xl">
         {!query && (
-          <div className="text-center py-12 text-gray-600">
-            <p className="text-sm">
-              {mode === 'student'
-                ? 'Type a student name or their 6-digit matricola number'
-                : 'Type a professor name to find them'
-              }
-            </p>
+          <div className="glass border-dashed border-2 border-white/10 rounded-3xl p-16 text-center">
+            <div className="w-16 h-16 bg-zinc-900/50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Search size={24} className="text-zinc-600" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Start typing to search</h2>
+            <p className="text-zinc-500">Find connections across the university database.</p>
           </div>
         )}
 
-        {/* No results */}
         {query && !loading && results.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-600">No {mode}s found for "{query}"</p>
+          <div className="text-center py-20">
+            <h2 className="text-xl font-bold text-white mb-2">No results found</h2>
+            <p className="text-zinc-500">We couldn&apos;t find any {mode}s matching &quot;{query}&quot;</p>
           </div>
         )}
 
-        {/* ── STUDENT RESULTS — 3 column table ── */}
-        {mode === 'student' && results.length > 0 && (
-          <div className="bg-[#111113] border border-white/5 rounded-2xl overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-[180px_1fr_110px_130px] gap-0 px-5 py-3 border-b border-white/5">
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Name</p>
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Programme</p>
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Matricola</p>
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest"></p>
-            </div>
-            {/* Table rows */}
-            {results.map((u, i) => (
-              <div key={u._id}
-                onClick={() => router.push(`/profile/${u._id}`)}
-                className={`grid grid-cols-[180px_1fr_110px_130px] gap-0 items-center px-5 py-3.5 hover:bg-white/[0.03] transition cursor-pointer ${i !== results.length - 1 ? 'border-b border-white/5' : ''}`}>
-                {/* Name + avatar */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar user={u} size={8} />
-                  <p className="text-xs font-bold text-white truncate">{u.name}</p>
-                </div>
-                {/* Programme */}
-                <p className="text-xs text-gray-400 truncate">{u.program || <span className="text-gray-700 italic">Not set</span>}</p>
-                {/* Matricola */}
-                <p className="text-xs font-mono text-gray-500">
-                  {u.matricola ? `#${u.matricola}` : <span className="text-gray-700">—</span>}
-                </p>
-                {/* Action */}
-                <div onClick={e => e.stopPropagation()}>
-                  {renderActionButton(u)}
-                </div>
-              </div>
-            ))}
-            <div className="px-5 py-2 border-t border-white/5">
-              <p className="text-[9px] text-gray-700 font-mono">{results.length} student{results.length !== 1 ? 's' : ''} found</p>
-            </div>
+        {query && results.length > 0 && (
+          <div className="space-y-4">
+            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest pl-2 mb-2">Results ({results.length})</p>
+            <AnimatePresence>
+              {results.map((u, i) => (
+                <motion.div key={u._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  onClick={() => router.push(`/profile/${u._id}`)}
+                  className="glass rounded-3xl p-4 flex items-center justify-between border border-white/5 hover:border-indigo-500/30 hover:bg-white/[0.04] transition-all cursor-pointer group shadow-sm">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <Avatar user={u} size={12} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[17px] font-bold text-white truncate group-hover:text-indigo-400 transition-colors">{u.name}</p>
+                      <p className="text-[13px] text-zinc-400 truncate mt-0.5 max-w-[300px]">
+                        {mode === 'student' ? (u.program || 'Programme not set') : (u.department || 'Department not set')}
+                      </p>
+                      {mode === 'student' && u.matricola && (
+                        <p className="text-[11px] font-mono text-zinc-600 mt-1">ID: #{u.matricola}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
+                    {renderActionButton(u)}
+                    <ChevronRight size={18} className="text-zinc-700 group-hover:text-zinc-500 transition-colors hidden sm:block" />
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
-
-        {/* ── PROFESSOR RESULTS — 2 column table ── */}
-        {mode === 'professor' && results.length > 0 && (
-          <div className="bg-[#111113] border border-white/5 rounded-2xl overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-[180px_1fr_130px] gap-0 px-5 py-3 border-b border-white/5">
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Name</p>
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Department</p>
-              <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest"></p>
-            </div>
-            {/* Table rows */}
-            {results.map((u, i) => (
-              <div key={u._id}
-                onClick={() => router.push(`/profile/${u._id}`)}
-                className={`grid grid-cols-[180px_1fr_130px] gap-0 items-center px-5 py-3.5 hover:bg-white/[0.03] transition cursor-pointer ${i !== results.length - 1 ? 'border-b border-white/5' : ''}`}>
-                {/* Name + avatar */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar user={u} size={8} />
-                  <p className="text-xs font-bold text-white truncate">{u.name}</p>
-                </div>
-                {/* Department */}
-                <p className="text-xs text-gray-400 truncate">{u.department || <span className="text-gray-700 italic">Not set</span>}</p>
-                {/* Action */}
-                <div onClick={e => e.stopPropagation()}>
-                  {renderActionButton(u)}
-                </div>
-              </div>
-            ))}
-            <div className="px-5 py-2 border-t border-white/5">
-              <p className="text-[9px] text-gray-700 font-mono">{results.length} professor{results.length !== 1 ? 's' : ''} found</p>
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
   )
